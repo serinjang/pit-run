@@ -3,7 +3,7 @@ import Svg, { Path, Rect, G, ClipPath, Defs } from 'react-native-svg';
 
 export default function ChinaFlag() {
   return (
-    <Svg width="17" height="11" viewBox="0 0 17 11" fill="none">
+    <Svg width="22" height="14" viewBox="0 0 17 11" fill="none">
       <Defs>
         <ClipPath id="cfClip">
           <Rect width="17" height="11" rx="2" fill="white" />

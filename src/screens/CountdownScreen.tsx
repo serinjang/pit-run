@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
     color: '#E03A3E',
     fontSize: 130 * scale,
     letterSpacing: 5,
-    fontWeight: '900',
+    fontFamily: 'Formula1-Black',
     marginBottom: 80 * scale,
   },
   dotWrap: {

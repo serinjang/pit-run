@@ -1,262 +1,382 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
-import CircuitMap from '../components/CircuitMap';
-import CheckerFlag from '../components/CheckerFlag';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useRunStore } from '../store/runStore';
+import { useRunning } from '../hooks/useRunning';
+import { fmtTime, fmtPace, fmtDist } from '../utils/format';
+import { COLORS } from '../constants/colors';
+import { CIRCUIT_KM } from '../constants/tires';
+import PauseButton from '../components/PauseButton';
+import StopButton from '../components/StopButton';
+import PlayButton from '../components/PlayButton';
+import BoxBoxSheet from '../components/BoxBoxSheet';
 import NameTag from '../components/NameTag';
-import RunningButton from '../components/RunningButton';
-import type { CircuitDefinition } from '../config/circuits';
+import CheckerFlag from '../components/CheckerFlag';
+import ChinaFlag from '../components/ChinaFlag';
+import CircuitMap, {
+  CIRCUIT_VIEWBOX,
+  getCircuitPointAtProgress,
+  getCircuitTangentAtProgress,
+} from '../components/CircuitMap';
 
-const THEMES = {
-  yellow: { start: '#FCB827', end: '#FC8A27' },
-  purple: { start: '#8528C5', end: '#B328C5' },
-  green: { start: '#59B345', end: '#28C584' },
+const FW = 402;
+const FH = 874;
+
+const GLOW = {
+  yellow: 'rgba(252,184,39,0.7)',
+  purple: 'rgba(190,78,255,0.75)',
+  green: 'rgba(89,179,69,0.75)',
 } as const;
 
-type ThemeMode = keyof typeof THEMES;
+const BTN_BG = {
+  yellow: '#FFDD94',
+  purple: '#B850FF',
+  green: '#59B345',
+} as const;
 
-type PaceRecords = {
-  bestEverSecPerKm: number;
-  todayBestSecPerKm: number;
-};
+const BTN_ICON = {
+  yellow: '#FCB827',
+  purple: '#C26AFF',
+  green: '#59B345',
+} as const;
 
-type UserProfile = {
-  displayName: string;
-  nameTagAccentColor: string;
-};
+const TAG_BORDER = {
+  yellow: { start: '#FC8E28', end: '#FCB827' },
+  purple: { start: '#AF28C5', end: '#8528C5' },
+  green: { start: '#2CC37F', end: '#59B345' },
+} as const;
+
+const DIST_BASE_SIZE = 130.2486572265625;
+const DIST_LINE_HEIGHT_RATIO = 156 / DIST_BASE_SIZE;
+const DIST_FIT_SAMPLE = '9999.99';
+const PACE_FIT_SAMPLE = '99\'59"';
 
 type RunningScreenProps = {
-  circuit: CircuitDefinition;
-  profile: UserProfile;
-  records: PaceRecords;
-  onPaceSample: (paceSecPerKm: number) => void;
   onStop: () => void;
+  circuit?: { displayName: string; distanceKm: number };
+  profile?: { displayName: string; nameTagAccentColor: string };
+  records?: { bestEverSecPerKm: number; todayBestSecPerKm: number };
+  onPaceSample?: (paceSecPerKm: number) => void;
 };
 
-type RunMetrics = {
-  elapsedSec: number;
-  distanceKm: number;
-  paceSecPerKm: number;
-};
+export default function RunningScreen({ onStop, circuit, profile, onPaceSample }: RunningScreenProps) {
+  const { width: windowW, height: windowH } = useWindowDimensions();
+  const [initialW] = useState(windowW);
+  const [initialH] = useState(windowH);
 
-const FIGMA_WIDTH = 402;
-const FIGMA_HEIGHT = 874;
+  // Keep visual scale fixed to initially detected device size.
+  const sx = initialW / FW;
+  const sy = initialH / FH;
+  const s = (v: number) => v * sx;
+  const t = (v: number) => v * sy;
 
-const formatDistance = (distanceKm: number) => distanceKm.toFixed(2);
-const formatTime = (elapsedSec: number) => {
-  const mm = Math.floor(elapsedSec / 60);
-  const ss = elapsedSec % 60;
-  return `${mm}'${ss < 10 ? '0' : ''}${ss}"`;
-};
-const formatPace = (paceSecPerKm: number) => {
-  const mm = Math.floor(paceSecPerKm / 60);
-  const ss = Math.floor(paceSecPerKm % 60);
-  return `${mm}'${ss < 10 ? '0' : ''}${ss}"`;
-};
+  const {
+    distKm,
+    elapsedMs,
+    paceS,
+    sector,
+    prog,
+    isPaused,
+    boxBoxActive,
+    pauseRun,
+    resumeRun,
+    stopRun,
+    startRun,
+    closeBoxBox,
+    setTire,
+  } = useRunStore();
 
-function getThemeMode(currentPace: number, records: PaceRecords): ThemeMode {
-  if (currentPace <= records.bestEverSecPerKm) return 'purple';
-  if (currentPace <= records.todayBestSecPerKm) return 'green';
-  return 'yellow';
-}
-
-function createInitialMetrics(): RunMetrics {
-  return {
-    elapsedSec: 0,
-    distanceKm: 0,
-    paceSecPerKm: 301,
-  };
-}
-
-export default function RunningScreen({
-  circuit,
-  profile,
-  records,
-  onPaceSample,
-  onStop,
-}: RunningScreenProps) {
-  const [paused, setPaused] = useState(false);
-  const [metrics, setMetrics] = useState<RunMetrics>(createInitialMetrics);
-  const tickRef = useRef(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const { width, height } = Dimensions.get('window');
-  const sx = width / FIGMA_WIDTH;
-  const sy = height / FIGMA_HEIGHT;
-  const scaleX = (v: number) => v * sx;
-  const scaleY = (v: number) => v * sy;
-
-  const themeMode = useMemo(
-    () => getThemeMode(metrics.paceSecPerKm, records),
-    [metrics.paceSecPerKm, records],
-  );
-  const theme = THEMES[themeMode];
+  useRunning();
 
   useEffect(() => {
-    if (paused) return;
-    timerRef.current = setInterval(() => {
-      tickRef.current += 1;
-      const t = tickRef.current;
+    startRun();
+  }, [startRun]);
 
-      setMetrics((prev) => {
-        const wave = Math.sin(t / 11) * 9;
-        const noise = (Math.random() - 0.5) * 5;
-        const nextPace = Math.max(250, Math.min(380, prev.paceSecPerKm + wave * 0.2 + noise));
-        const nextDistance = prev.distanceKm + 1 / nextPace;
-        const nextElapsed = prev.elapsedSec + 1;
+  const cfg = COLORS.sector[sector];
+  const circuitLabel = circuit?.displayName ?? 'Shanghai';
+  const circuitKm = circuit?.distanceKm ?? CIRCUIT_KM;
+  const nameTagLabel = profile?.displayName ?? 'Lec';
 
-        onPaceSample(nextPace);
-        return {
-          elapsedSec: nextElapsed,
-          distanceKm: nextDistance,
-          paceSecPerKm: nextPace,
-        };
-      });
-    }, 1000);
+  const DIST_LEFT = s(36);
+  const DIST_RIGHT = windowW - DIST_LEFT;
+  const distFrameWidth = DIST_RIGHT - DIST_LEFT;
 
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [onPaceSample, paused]);
+  const distBaseSize = DIST_BASE_SIZE;
+  const initialDistAvailableWidth = initialW - DIST_LEFT * 2;
+  const [distSampleWidth, setDistSampleWidth] = useState<number>(0);
+  const [distRenderWidth, setDistRenderWidth] = useState<number>(0);
 
-  const FlagComponent = circuit.flagComponent;
-  const progress = (metrics.distanceKm % circuit.distanceKm) / circuit.distanceKm;
+  const distFontSize = useMemo(() => {
+    if (distSampleWidth <= 0) return distBaseSize;
+    const scale = Math.min(1, initialDistAvailableWidth / distSampleWidth);
+    return distBaseSize * scale;
+  }, [distBaseSize, distSampleWidth, initialDistAvailableWidth]);
+
+  const distLineHeight = distFontSize * DIST_LINE_HEIGHT_RATIO;
+  const distStartX = (DIST_LEFT + DIST_RIGHT) / 2 - distRenderWidth / 2;
+  const distEndX = distStartX + distRenderWidth;
+  const distAnchorLeft = distRenderWidth > 0 ? distStartX : DIST_LEFT;
+
+  const distTop = t(174);
+  const metaTop = distTop - 20;
+  const statsLabelTop = distTop + distLineHeight + 28;
+  const statsLabelHeight = 13;
+  const statsValueTop = statsLabelTop + statsLabelHeight + 8;
+
+  const paceValue = fmtPace(paceS);
+  const [paceMaxWidth, setPaceMaxWidth] = useState<number>(0);
+  const [paceCurrentWidth, setPaceCurrentWidth] = useState<number>(0);
+  const paceTextWidth = (paceMaxWidth > 0 ? paceMaxWidth : s(84)) + s(2);
+  const paceCurrentStartOffset = paceCurrentWidth > 0 ? paceCurrentWidth : (paceMaxWidth > 0 ? paceMaxWidth : s(84));
+  const paceRight = distRenderWidth > 0 ? distEndX : DIST_RIGHT;
+  const paceLeft = paceRight - paceTextWidth;
+  const paceLabelLeft = paceRight - paceCurrentStartOffset;
+
+  const circuitTop = t(482);
+  const circuitW = s(280.21);
+  const circuitH = t(180);
+  const circuitLeft = DIST_LEFT + (distFrameWidth - circuitW) / 2;
+
+  const circuitScale = Math.min(circuitW / CIRCUIT_VIEWBOX.width, circuitH / CIRCUIT_VIEWBOX.height);
+  const circuitOffsetX = (circuitW - CIRCUIT_VIEWBOX.width * circuitScale) / 2;
+  const circuitOffsetY = (circuitH - CIRCUIT_VIEWBOX.height * circuitScale) / 2;
+  const circuitPoint = getCircuitPointAtProgress(prog);
+  const startPoint = getCircuitPointAtProgress(0);
+  const tangent = getCircuitTangentAtProgress(prog);
+
+  // Incoming side (where the drawn line reaches the tag)
+  // is opposite to the forward tangent direction.
+  const touchNx = -tangent.x;
+  const touchNy = -tangent.y;
+  const gradientX1 = 0.5 + 0.5 * touchNx;
+  const gradientY1 = 0.5 + 0.5 * touchNy;
+  const gradientX2 = 0.5 - 0.5 * touchNx;
+  const gradientY2 = 0.5 - 0.5 * touchNy;
+
+  const nameTagW = 43;
+  const nameTagH = 26;
+  const nameTagLeft = circuitLeft + circuitOffsetX + circuitPoint.x * circuitScale - nameTagW / 2;
+  const nameTagTop = circuitTop + circuitOffsetY + circuitPoint.y * circuitScale - nameTagH / 2;
+
+  // Anchor checker by its tilted rectangle (inside SVG) to the circuit start outline.
+  const checkerAnchorX = 10.84;
+  const checkerAnchorY = 7.4;
+  const checkerOverlap = 0.8;
+  const checkerLeft = circuitLeft + circuitOffsetX + startPoint.x * circuitScale - checkerAnchorX + checkerOverlap;
+  const checkerTop = circuitTop + circuitOffsetY + startPoint.y * circuitScale - checkerAnchorY;
+
+  useEffect(() => {
+    onPaceSample?.(paceS);
+  }, [paceS, onPaceSample]);
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.flagWrap, { left: scaleX(39), top: scaleY(177) }]}>
-        <FlagComponent />
+    <View style={st.container}>
+      <View style={[st.circuitMetaRow, { left: distAnchorLeft + 2, top: metaTop, gap: 6 }]}>
+        <ChinaFlag />
+        <Text style={[st.circuitName, { fontSize: 17, lineHeight: 17 }]}>
+          {circuitLabel} {circuitKm.toFixed(2)}km
+        </Text>
       </View>
 
-      <Text style={[styles.circuitText, { left: scaleX(61), top: scaleY(174) }]}>
-        {circuit.displayName} {circuit.distanceKm.toFixed(2)}km
-      </Text>
-
-      <Text style={[styles.distanceText, { left: scaleX(36), top: scaleY(174), color: theme.start }]}>
-        {formatDistance(metrics.distanceKm)}
-      </Text>
-
-      <Text style={[styles.labelText, { left: scaleX(41), top: scaleY(352) }]}>TIME</Text>
-      <Text style={[styles.valueText, { left: scaleX(41), top: scaleY(377) }]}>
-        {formatTime(metrics.elapsedSec)}
-      </Text>
-
-      <Text style={[styles.labelText, { left: scaleX(274), top: scaleY(352) }]}>PACE</Text>
-      <Text style={[styles.valueText, { left: scaleX(274), top: scaleY(377) }]}>
-        {formatPace(metrics.paceSecPerKm)}
-      </Text>
-
-      <View
-        style={{
-          position: 'absolute',
-          left: width * 0.1318,
-          top: height * 0.5515,
-          width: width * 0.6971,
-          height: height * 0.206,
-        }}
-      >
-        <CircuitMap
-          trackPath={circuit.trackPath}
-          progress={progress}
-          startColor={theme.start}
-          endColor={theme.end}
-        />
+      <View style={[st.distCenterWrap, { top: distTop, left: DIST_LEFT, right: DIST_LEFT }]}> 
+        <Text
+          numberOfLines={1}
+          ellipsizeMode="clip"
+          allowFontScaling={false}
+          onLayout={(e) => {
+            const w = e.nativeEvent.layout.width;
+            if (w > 0 && Math.abs(w - distRenderWidth) > 0.5) setDistRenderWidth(w);
+          }}
+          style={[st.dist, { color: cfg.start, fontSize: distFontSize, lineHeight: distLineHeight }]}
+        >
+          {fmtDist(distKm)}
+        </Text>
       </View>
 
-      <View
+      <Text
+        numberOfLines={1}
+        allowFontScaling={false}
         style={[
-          styles.startMarker,
+          st.hiddenMeasure,
           {
-            left: width * (0.1318 + circuit.startMarker.xRatio * 0.6971),
-            top: height * (0.5515 + circuit.startMarker.yRatio * 0.206),
-            transform: [{ rotate: `${circuit.startMarker.angleDeg}deg` }],
+            fontFamily: 'Formula1-Black',
+            fontSize: distBaseSize,
+            lineHeight: distBaseSize * DIST_LINE_HEIGHT_RATIO,
+            letterSpacing: 6.5,
           },
         ]}
-      />
+        onLayout={(e) => {
+          const w = e.nativeEvent.layout.width;
+          if (w > 0 && Math.abs(w - distSampleWidth) > 0.5) setDistSampleWidth(w);
+        }}
+      >
+        {DIST_FIT_SAMPLE}
+      </Text>
+
+      <Text style={[st.lbl, { left: distStartX, top: statsLabelTop, fontSize: 13, lineHeight: 13 }]}>TIME</Text>
+      <Text style={[st.val, { left: distStartX, top: statsValueTop, fontSize: 30, lineHeight: 36 }]}>{fmtTime(elapsedMs)}</Text>
+
+      <Text style={[st.lbl, { left: paceLabelLeft, top: statsLabelTop, fontSize: 13, lineHeight: 13 }]}>PACE</Text>
+      <Text
+        numberOfLines={1}
+        ellipsizeMode="clip"
+        allowFontScaling={false}
+        style={[
+          st.val,
+          {
+            left: paceLeft,
+            top: statsValueTop,
+            width: paceTextWidth,
+            textAlign: 'right',
+            fontSize: 30,
+            lineHeight: 36,
+          },
+        ]}
+      >
+        {paceValue}
+      </Text>
+
+      <Text
+        numberOfLines={1}
+        allowFontScaling={false}
+        onLayout={(e) => {
+          const w = e.nativeEvent.layout.width;
+          if (w > 0 && Math.abs(w - paceMaxWidth) > 0.5) setPaceMaxWidth(w);
+        }}
+        style={[st.hiddenMeasure, { fontFamily: 'Formula1-Bold', fontSize: 30, lineHeight: 36 }]}
+      >
+        {PACE_FIT_SAMPLE}
+      </Text>
+
+      <Text
+        numberOfLines={1}
+        allowFontScaling={false}
+        onLayout={(e) => {
+          const w = e.nativeEvent.layout.width;
+          if (w > 0 && Math.abs(w - paceCurrentWidth) > 0.5) setPaceCurrentWidth(w);
+        }}
+        style={[st.hiddenMeasure, { fontFamily: 'Formula1-Bold', fontSize: 30, lineHeight: 36 }]}
+      >
+        {paceValue}
+      </Text>
 
       <View
         style={{
           position: 'absolute',
-          left: width * (0.1318 + circuit.checkerFlag.xRatio * 0.6971),
-          top: height * (0.5515 + circuit.checkerFlag.yRatio * 0.206),
-          transform: [{ rotate: `${circuit.checkerFlag.angleDeg}deg` }],
+          top: circuitTop,
+          left: circuitLeft,
+          width: circuitW,
+          height: circuitH,
         }}
       >
-        <CheckerFlag />
+        <CircuitMap progress={prog} />
       </View>
 
-      <View style={{ position: 'absolute', left: scaleX(215), top: scaleY(577) }}>
+
+
+      <View style={{ position: 'absolute', left: checkerLeft, top: checkerTop }}>
+        <CheckerFlag color={cfg.start} />
+      </View>
+
+      <View style={{ position: 'absolute', left: nameTagLeft, top: nameTagTop }}>
         <NameTag
-          label={profile.displayName}
-          borderStartColor={theme.start}
-          borderEndColor={theme.end}
-          accentColor={profile.nameTagAccentColor}
+          label={nameTagLabel}
+          colorStart="#FC8A27"
+          colorEnd="#FCB827"
+          accentColor="#E03A3E"
+          gradientX1={gradientX1}
+          gradientY1={gradientY1}
+          gradientX2={gradientX2}
+          gradientY2={gradientY2}
         />
       </View>
 
-      <View style={{ position: 'absolute', top: scaleY(753), left: 0, right: 0 }}>
-        <View style={styles.controlRow}>
-          {paused ? (
-            <>
-              <Pressable onPress={onStop}>
-                <RunningButton type="stop" color={theme.start} bgColor={theme.start} size={scaleX(76)} />
-              </Pressable>
-              <Pressable onPress={() => setPaused(false)}>
-                <RunningButton type="play" color={theme.start} bgColor={theme.start} size={scaleX(76)} />
-              </Pressable>
-            </>
-          ) : (
-            <Pressable onPress={() => setPaused(true)}>
-              <RunningButton type="pause" color={theme.start} bgColor={theme.start} size={scaleX(76)} />
+      <View
+        style={{
+          position: 'absolute',
+          top: t(753),
+          left: 0,
+          right: 0,
+          flexDirection: 'row',
+          justifyContent: 'center',
+          gap: s(24),
+        }}
+      >
+        {isPaused ? (
+          <>
+            <Pressable
+              onPress={() => {
+                stopRun();
+                onStop();
+              }}
+            >
+              <StopButton color={BTN_ICON[sector]} bgColor={BTN_BG[sector]} size={76} />
             </Pressable>
-          )}
-        </View>
+            <Pressable onPress={resumeRun}>
+              <PlayButton color={BTN_ICON[sector]} bgColor={BTN_BG[sector]} size={76} />
+            </Pressable>
+          </>
+        ) : (
+          <Pressable onPress={pauseRun}>
+            <PauseButton color={BTN_ICON[sector]} bgColor={BTN_BG[sector]} size={76} />
+          </Pressable>
+        )}
       </View>
+
+      <BoxBoxSheet
+        visible={boxBoxActive}
+        onClose={closeBoxBox}
+        onSelectTire={(tire) => {
+          setTire(tire);
+        }}
+      />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const st = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#17171C',
   },
-  flagWrap: {
+  circuitMetaRow: {
     position: 'absolute',
-  },
-  circuitText: {
-    position: 'absolute',
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 13,
-    letterSpacing: -0.4,
-  },
-  distanceText: {
-    position: 'absolute',
-    fontSize: 130,
-    fontWeight: '900',
-    letterSpacing: 5,
-    lineHeight: 156,
-  },
-  labelText: {
-    position: 'absolute',
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 13,
-  },
-  valueText: {
-    position: 'absolute',
-    color: '#FFFFFF',
-    fontSize: 30,
-    fontWeight: '700',
-  },
-  startMarker: {
-    position: 'absolute',
-    width: 14,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#E03A3E',
-  },
-  controlRow: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 24,
+    alignItems: 'center',
+  },
+  circuitName: {
+    fontFamily: 'Formula1-Regular',
+    color: 'rgba(255,255,255,0.5)',
+    letterSpacing: -0.65,
+    includeFontPadding: false,
+  },
+  distCenterWrap: {
+    position: 'absolute',
+    alignItems: 'center',
+  },
+  dist: {
+    fontFamily: 'Formula1-Black',
+    letterSpacing: 6.5,
+    includeFontPadding: false,
+    textAlign: 'center',
+  },
+  lbl: {
+    position: 'absolute',
+    fontFamily: 'Formula1-Regular',
+    color: 'rgba(255,255,255,0.3)',
+    letterSpacing: -0.26,
+    includeFontPadding: false,
+  },
+  val: {
+    position: 'absolute',
+    fontFamily: 'Formula1-Bold',
+    color: '#FFFFFF',
+    includeFontPadding: false,
+  },
+  hiddenMeasure: {
+    position: 'absolute',
+    opacity: 0,
+    left: -9999,
+    top: -9999,
+    includeFontPadding: false,
   },
 });

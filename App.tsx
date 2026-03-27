@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { StatusBar, StyleSheet, View } from 'react-native';
+import { useFonts } from 'expo-font';
 import CountdownScreen from './src/screens/CountdownScreen';
 import ReadyScreen from './src/screens/ReadyScreen';
 import RunningScreen from './src/screens/RunningScreen';
@@ -18,6 +19,13 @@ type UserProfile = {
 };
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    'Formula1-Black': require('./assets/fonts/Formula1-Black.ttf'),
+    'Formula1-Bold': require('./assets/fonts/Formula1-Bold_web_0.ttf'),
+    'Formula1-Regular': require('./assets/fonts/Formula1-Regular_web_0.ttf'),
+    'Formula1-Italic': require('./assets/fonts/Formula1_Display-Italic_Italic.ttf'),
+  });
+
   const [screen, setScreen] = useState<Screen>('ready');
   const [selectedCircuitId, setSelectedCircuitId] = useState(DEFAULT_CIRCUIT_ID);
   const [records, setRecords] = useState<PaceRecords>({
@@ -45,6 +53,8 @@ export default function App() {
       todayBestSecPerKm: Math.min(prev.todayBestSecPerKm, paceSecPerKm),
     }));
   }, []);
+
+  if (!fontsLoaded) return <View style={styles.root} />;
 
   return (
     <View style={styles.root}>

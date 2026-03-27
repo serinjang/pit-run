@@ -1,6 +1,7 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { CircuitDefinition } from '../config/circuits';
+import SvgButton from '../components/SvgButton';
 
 type UserProfile = {
   displayName: string;
@@ -14,6 +15,12 @@ type ReadyScreenProps = {
   onStart: () => void;
   profile: UserProfile;
 };
+
+const SCREEN_W = Dimensions.get('window').width;
+const CARD_CONTENT_W = SCREEN_W - 24 * 2 - 14 * 2;
+const OPTION_H = 48;
+const START_W = SCREEN_W - 24 * 2;
+const START_H = 58;
 
 export default function ReadyScreen({
   circuits,
@@ -46,19 +53,40 @@ export default function ReadyScreen({
               <Pressable
                 key={circuit.id}
                 onPress={() => onSelectCircuit(circuit.id)}
-                style={[styles.circuitOption, selected && styles.circuitOptionSelected]}
+                style={styles.circuitOptionPress}
               >
-                <Text style={[styles.circuitText, selected && styles.circuitTextSelected]}>
-                  {circuit.displayName} ({circuit.distanceKm.toFixed(2)}km)
-                </Text>
+                <SvgButton
+                  width={CARD_CONTENT_W}
+                  height={OPTION_H}
+                  radius={10}
+                  fill={selected ? '#FCB827' : 'rgba(255,255,255,0.02)'}
+                  fillOpacity={selected ? 0.15 : 1}
+                  stroke={selected ? '#FCB827' : 'rgba(255,255,255,0.12)'}
+                  strokeWidth={1}
+                  textColor={selected ? '#FFFFFF' : '#EAEAEA'}
+                  fontFamily={selected ? 'Formula1-Bold' : 'Formula1-Regular'}
+                  fontSize={14}
+                  label={`${circuit.displayName} (${circuit.distanceKm.toFixed(2)}km)`}
+                />
               </Pressable>
             );
           })}
         </View>
       </View>
 
-      <Pressable onPress={onStart} style={styles.startButton}>
-        <Text style={styles.startButtonText}>러닝 기록 시작</Text>
+      <Pressable onPress={onStart} style={styles.startButtonPress}>
+        <SvgButton
+          width={START_W}
+          height={START_H}
+          radius={14}
+          fill="#E03A3E"
+          stroke="#E03A3E"
+          strokeWidth={1}
+          textColor="#FFFFFF"
+          fontFamily="Formula1-Bold"
+          fontSize={17}
+          label="러닝 기록 시작"
+        />
       </Pressable>
     </View>
   );
@@ -74,7 +102,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 38,
-    fontWeight: '800',
+    fontFamily: 'Formula1-Black',
     color: '#FFFFFF',
     letterSpacing: 1.5,
     textAlign: 'center',
@@ -83,6 +111,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.65)',
     textAlign: 'center',
     marginBottom: 10,
+    fontFamily: 'Formula1-Regular',
   },
   card: {
     borderRadius: 14,
@@ -94,12 +123,13 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: '#FFFFFF',
-    fontWeight: '700',
+    fontFamily: 'Formula1-Bold',
     fontSize: 14,
   },
   userText: {
     color: '#EAEAEA',
     fontSize: 14,
+    fontFamily: 'Formula1-Regular',
   },
   colorRow: {
     flexDirection: 'row',
@@ -114,38 +144,14 @@ const styles = StyleSheet.create({
   circuitList: {
     gap: 8,
   },
-  circuitOption: {
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    backgroundColor: 'rgba(255,255,255,0.02)',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+  circuitOptionPress: {
+    width: CARD_CONTENT_W,
+    height: OPTION_H,
   },
-  circuitOptionSelected: {
-    borderColor: '#FCB827',
-    backgroundColor: 'rgba(252,184,39,0.15)',
-  },
-  circuitText: {
-    color: '#EAEAEA',
-    fontSize: 14,
-  },
-  circuitTextSelected: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  startButton: {
-    height: 58,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#E03A3E',
+  startButtonPress: {
     marginTop: 6,
-  },
-  startButtonText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '800',
-    letterSpacing: 0.2,
+    width: START_W,
+    height: START_H,
+    alignSelf: 'center',
   },
 });
