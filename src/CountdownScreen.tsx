@@ -2,11 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 
 const { width: W } = Dimensions.get('window');
-const SCALE = W / 402;
+const SCALE = W / 402; // Figma 기준 402px
 
+// Figma 도트 스펙
 const DOT_SIZE = 45;
-const DOT_GAP = 17;
-const DOT_ROW_GAP = 21;
+const DOT_GAP = 17;      // 116-54-45 = 17
+const DOT_ROW_GAP = 21;  // 535-469-45 = 21
+
 const DOT_INACTIVE = '#2A3140';
 const DOT_ACTIVE = ['#FF6525', '#F85C2A', '#F04A2A', '#E84535', '#E03A3E'];
 
@@ -71,7 +73,7 @@ export default function CountdownScreen({ onFinish }: { onFinish: () => void }) 
 const s = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#17171C',
+    backgroundColor: '#191F28',
     alignItems: 'center',
     justifyContent: 'center',
   },
