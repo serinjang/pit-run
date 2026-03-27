@@ -1,51 +1,70 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import Svg, { Rect, G, ClipPath, Defs, Path } from 'react-native-svg';
 import { useRunStore } from '../store/runStore';
 import { useRunning } from '../hooks/useRunning';
 import { fmtTime, fmtPace, fmtDist } from '../utils/format';
 import { COLORS } from '../constants/colors';
 import { CIRCUIT_KM } from '../constants/tires';
 import CircuitMap from '../components/CircuitMap';
-import PauseButton from '../components/PauseButton';
-import StopButton from '../components/StopButton';
-import PlayButton from '../components/PlayButton';
+import RunningButton from '../components/RunningButton';
 import NameTag from '../components/NameTag';
-import ChinaFlag from '../components/ChinaFlag';
-import CheckerFlag from '../components/CheckerFlag';
 
 const { width: W } = Dimensions.get('window');
 const SCALE = W / 402;
 
+// 섹터별 버튼 배경색 (HTML 프로토타입과 동일)
+const BTN_BG = {
+  yellow: '#FFDD94',
+  purple: '#B850FF',
+  green:  '#59B345',
+};
+
+// 중국 국기 SVG 컴포넌트
+function ChinaFlag() {
+  return (
+    <Svg width="17" height="11" viewBox="0 0 17 11" fill="none">
+      <Defs>
+        <ClipPath id="cfClip">
+          <Rect width="17" height="11" rx="2" fill="white" />
+        </ClipPath>
+      </Defs>
+      <G clipPath="url(#cfClip)">
+        <Rect width="17" height="11" rx="2" fill="#E03A3E" />
+        <Path d="M1.8001 4.21748C1.81269 4.25652 1.84904 4.28298 1.89006 4.28298H3.89066C3.9823 4.28298 4.02033 4.40031 3.94611 4.45407L2.32235 5.6302C2.28908 5.65429 2.27519 5.69711 2.28796 5.73615L2.91081 7.63982C2.93934 7.72699 2.83947 7.79962 2.76532 7.74562L1.15183 6.57059C1.11874 6.54649 1.07389 6.54643 1.04073 6.57045L-0.5836 7.74699C-0.657786 7.80072 -0.757379 7.72809 -0.728895 7.64103L-0.105643 5.73615C-0.0928698 5.69711 -0.106768 5.65429 -0.140034 5.6302L-1.7638 4.45407C-1.83802 4.40031 -1.79999 4.28298 -1.70835 4.28298H0.292554C0.333435 4.28298 0.369684 4.2567 0.382397 4.21785L1.00585 2.31234C1.03433 2.2253 1.15755 2.22556 1.18566 2.31271L1.8001 4.21748Z" fill="#FCB827"/>
+        <Path d="M5.33665 1.62859C5.33379 1.64894 5.3444 1.66881 5.36291 1.67774L5.8002 1.88884C5.84156 1.90881 5.83302 1.97007 5.78778 1.97797L5.31395 2.06071C5.29375 2.06424 5.27813 2.08039 5.27528 2.10069L5.2068 2.58762C5.20046 2.63273 5.14024 2.64364 5.11848 2.60362L4.88206 2.16891C4.87237 2.15109 4.85239 2.14144 4.83241 2.14493L4.35792 2.22779C4.3127 2.23569 4.28391 2.18099 4.31601 2.14818L4.65537 1.80128C4.66972 1.78661 4.67297 1.76437 4.66341 1.74621L4.43559 1.31334C4.41435 1.27299 4.45691 1.22894 4.49796 1.24876L4.93845 1.46141C4.9569 1.47032 4.97899 1.46632 4.99316 1.45152L5.32367 1.10599C5.3554 1.07282 5.41102 1.09979 5.40463 1.14524L5.33665 1.62859Z" fill="#FCB827"/>
+        <Path d="M7.56634 3.87063C7.55553 3.88813 7.55727 3.91062 7.57066 3.92625L7.88847 4.29701C7.91826 4.33177 7.88617 4.38435 7.84163 4.37375L7.36438 4.26012C7.34433 4.25535 7.32351 4.26411 7.3129 4.28178L7.06526 4.69454C7.04156 4.73403 6.98113 4.71977 6.9776 4.67385L6.93988 4.18346C6.93829 4.16272 6.92332 4.14546 6.90301 4.14095L6.42897 4.03562C6.38406 4.02564 6.37842 3.9639 6.42078 3.94596L6.86448 3.75795C6.88318 3.75003 6.89472 3.73105 6.89317 3.7108L6.85509 3.21575C6.85158 3.17018 6.90835 3.14666 6.9381 3.18136L7.25691 3.5533C7.27008 3.56867 7.29157 3.57394 7.31035 3.56643L7.76709 3.38374C7.80942 3.36681 7.84882 3.4137 7.82485 3.45248L7.56634 3.87063Z" fill="#FCB827"/>
+        <Path d="M7.51421 7.19388C7.49745 7.2059 7.49042 7.22741 7.49684 7.24702L7.64742 7.70627C7.66172 7.74991 7.61169 7.78625 7.57462 7.75916L7.18255 7.47265C7.16594 7.46051 7.14339 7.46051 7.12678 7.47265L6.73471 7.75916C6.69764 7.78625 6.64761 7.74991 6.66191 7.70627L6.81259 7.2467C6.81897 7.22725 6.81209 7.2059 6.79556 7.19382L6.40169 6.90598C6.36477 6.87901 6.38385 6.82056 6.42957 6.82056H6.91313C6.93365 6.82056 6.95182 6.80733 6.95812 6.7878L7.10968 6.31796C7.12377 6.27428 7.18556 6.27428 7.19965 6.31796L7.35121 6.7878C7.35751 6.80733 7.37568 6.82056 7.39619 6.82056H7.88786C7.9338 6.82056 7.95273 6.87947 7.9154 6.90623L7.51421 7.19388Z" fill="#FCB827"/>
+        <Path d="M5.27119 9.31642C5.25178 9.32278 5.23865 9.3409 5.23865 9.36133V9.85541C5.23865 9.90113 5.1802 9.92021 5.15322 9.8833L4.86508 9.48901C4.85315 9.47268 4.83216 9.46576 4.81286 9.47177L4.35012 9.6159C4.30662 9.62945 4.27102 9.57967 4.2979 9.54289L4.58658 9.14785C4.59871 9.13124 4.59871 9.10868 4.58658 9.09207L4.30007 8.70003C4.27298 8.66295 4.30933 8.61292 4.35296 8.62723L4.81251 8.77791C4.83196 8.78429 4.85331 8.77741 4.86539 8.76088L5.15322 8.367C5.1802 8.33008 5.23865 8.34916 5.23865 8.39488V8.87862C5.23865 8.89905 5.25178 8.91717 5.27119 8.92354L5.73336 9.07505C5.77674 9.08928 5.77675 9.15065 5.73336 9.16488L5.27119 9.31642Z" fill="#FCB827"/>
+      </G>
+    </Svg>
+  );
+}
+
 export default function RunningScreen({ onStop }: { onStop: () => void }) {
-  const { distKm, elapsedMs, paceS, sector, prog, isPaused, pauseRun, resumeRun, stopRun, startRun } = useRunStore();
+  const {
+    distKm, elapsedMs, paceS, sector, prog,
+    isPaused, pauseRun, resumeRun, stopRun, startRun,
+  } = useRunStore();
+
   useRunning();
   useEffect(() => { startRun(); }, []);
+
   const cfg = COLORS.sector[sector];
-  const distText = fmtDist(distKm);
-  const distFontSize = getDistFontSize(distText, W);
-  const distLineHeight = Math.round(distFontSize * 1.2);
+  const btnBg = BTN_BG[sector];
 
   return (
     <View style={s.container}>
+      {/* 국기 + 서킷명 */}
       <View style={s.circuitRow}>
         <ChinaFlag />
         <Text style={s.circuitName}>Shanghai {CIRCUIT_KM}km</Text>
       </View>
-      <Text
-        style={[
-          s.dist,
-          {
-            color: cfg.start,
-            fontSize: distFontSize,
-            lineHeight: distLineHeight,
-          },
-        ]}
-        numberOfLines={1}
-        allowFontScaling={false}
-        ellipsizeMode="clip"
-      >
-        {distText}
-      </Text>
+
+      {/* 거리 */}
+      <Text style={[s.dist, { color: cfg.start }]}>{fmtDist(distKm)}</Text>
+
+      {/* TIME / PACE */}
       <View style={s.statsRow}>
         <View>
           <Text style={s.statLabel}>TIME</Text>
@@ -56,32 +75,29 @@ export default function RunningScreen({ onStop }: { onStop: () => void }) {
           <Text style={s.statValue}>{fmtPace(paceS)}</Text>
         </View>
       </View>
-      <View style={s.mapWrap}>
+
+      {/* 서킷 맵 + 네임태그 */}
+      <View style={s.circuitWrap}>
         <CircuitMap progress={prog} colorStart={cfg.start} colorEnd={cfg.end} />
         <View style={s.nameTagWrap}>
-          <NameTag
-            label="LEC"
-            borderColorStart={cfg.start}
-            borderColorEnd={cfg.end}
-          />
-        </View>
-        <View style={s.checkerWrap}>
-          <CheckerFlag />
+          <NameTag label="LEC" colorStart={cfg.start} colorEnd={cfg.end} />
         </View>
       </View>
+
+      {/* 버튼 */}
       <View style={s.btnArea}>
         {isPaused ? (
           <>
             <TouchableOpacity onPress={() => { stopRun(); onStop(); }}>
-              <StopButton color={cfg.start} />
+              <RunningButton type="stop" color={cfg.start} bgColor={btnBg} />
             </TouchableOpacity>
             <TouchableOpacity onPress={resumeRun}>
-              <PlayButton color={cfg.start} />
+              <RunningButton type="play" color={cfg.start} bgColor={btnBg} />
             </TouchableOpacity>
           </>
         ) : (
           <TouchableOpacity onPress={pauseRun}>
-            <PauseButton color={cfg.start} />
+            <RunningButton type="pause" color={cfg.start} bgColor={btnBg} />
           </TouchableOpacity>
         )}
       </View>
@@ -89,32 +105,16 @@ export default function RunningScreen({ onStop }: { onStop: () => void }) {
   );
 }
 
-const DIST_BASE_SIZE = 130 * SCALE;
-const DIST_LETTER_SPACING = 6.5;
-const DIST_SIDE_PADDING = 36 * SCALE * 2;
-const DIST_MIN_SIZE = 72;
-
-function getDistFontSize(text: string, screenWidth: number): number {
-  const charCount = Math.max(text.length, 1);
-  const available = Math.max(screenWidth - DIST_SIDE_PADDING, 1);
-  const approxCharWidthAtBase = DIST_BASE_SIZE * 0.62;
-  const estimatedWidthAtBase =
-    charCount * approxCharWidthAtBase +
-    (charCount - 1) * DIST_LETTER_SPACING;
-  const scale = Math.min(1, available / estimatedWidthAtBase);
-  return Math.max(DIST_MIN_SIZE, Math.floor(DIST_BASE_SIZE * scale));
-}
-
+const BTN_SIZE = 76 * SCALE;
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#17171C', paddingTop: 52 },
-  circuitRow: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 36 * SCALE, marginBottom: 2 },
+  circuitRow: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 36 * SCALE },
   circuitName: { fontFamily: 'Formula1-Regular', fontSize: 13, color: 'rgba(255,255,255,0.5)', letterSpacing: -0.65 },
-  dist: { fontFamily: 'Formula1-Black', letterSpacing: DIST_LETTER_SPACING, paddingHorizontal: 36 * SCALE, textAlign: 'center', includeFontPadding: false },
+  dist: { fontFamily: 'Formula1-Black', fontSize: 130 * SCALE, lineHeight: 156 * SCALE, letterSpacing: 6.5, paddingHorizontal: 36 * SCALE, includeFontPadding: false },
   statsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 36 * SCALE, marginTop: 8 },
   statLabel: { fontFamily: 'Formula1-Regular', fontSize: 13, color: 'rgba(255,255,255,0.5)', letterSpacing: -0.65 },
   statValue: { fontFamily: 'Formula1-Bold', fontSize: 30, color: '#FFFFFF', includeFontPadding: false },
-  mapWrap: { flex: 1, position: 'relative' },
+  circuitWrap: { flex: 1, position: 'relative', marginHorizontal: 61 },
   nameTagWrap: { position: 'absolute', top: 20, right: 20 },
-  checkerWrap: { position: 'absolute', top: 52, right: 20 },
   btnArea: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 24, paddingBottom: 48, paddingTop: 16 },
 });
