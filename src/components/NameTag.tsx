@@ -10,25 +10,32 @@ import Svg, { Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
 
 interface Props {
   label?: string;
-  colorStart: string;  // 섹터 start 색상
-  colorEnd: string;    // 섹터 end 색상
+  borderStartColor: string;
+  borderEndColor: string;
+  accentColor: string;
 }
 
-export default function NameTag({ label = 'LEC', colorStart, colorEnd }: Props) {
+export default function NameTag({
+  label = 'LEC',
+  borderStartColor,
+  borderEndColor,
+  accentColor,
+}: Props) {
+  const safeLabel = label.trim().slice(0, 6).toUpperCase() || 'LEC';
   return (
     <View style={s.wrap}>
       <Svg width={43} height={26} viewBox="0 0 43 26" fill="none" style={StyleSheet.absoluteFillObject}>
         <Defs>
           <LinearGradient id="ntGrad" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0%" stopColor={colorStart} />
-            <Stop offset="100%" stopColor={colorEnd} />
+            <Stop offset="0%" stopColor={borderStartColor} />
+            <Stop offset="100%" stopColor={borderEndColor} />
           </LinearGradient>
         </Defs>
         <Rect x="2" y="2" width="39" height="22" rx="4.5" fill="#181E27" />
         <Rect x="2" y="2" width="39" height="22" rx="4.5" fill="none" stroke="url(#ntGrad)" strokeWidth="4" />
-        <Rect x="8" y="8" width="2" height="10" fill="#E03A3E" />
+        <Rect x="8" y="8" width="2" height="10" fill={accentColor} />
       </Svg>
-      <Text style={s.label}>{label}</Text>
+      <Text style={s.label}>{safeLabel}</Text>
     </View>
   );
 }

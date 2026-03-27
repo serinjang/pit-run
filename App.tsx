@@ -1,38 +1,80 @@
-import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, StatusBar } from 'react-native';
-import { useFonts } from 'expo-font';
-import { useRunStore } from './src/store/runStore';
+import React, { useCallback, useMemo, useState } from 'react';
+import { StatusBar, StyleSheet, View } from 'react-native';
 import CountdownScreen from './src/screens/CountdownScreen';
+import ReadyScreen from './src/screens/ReadyScreen';
 import RunningScreen from './src/screens/RunningScreen';
+import { CIRCUITS, DEFAULT_CIRCUIT_ID } from './src/config/circuits';
 
-type Screen = 'countdown' | 'running' | 'result';
+type Screen = 'ready' | 'countdown' | 'running';
+
+type PaceRecords = {
+  bestEverSecPerKm: number;
+  todayBestSecPerKm: number;
+};
+
+type UserProfile = {
+  displayName: string;
+  nameTagAccentColor: string;
+};
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>('countdown');
-  const { resetRun } = useRunStore();
-  const [fontsLoaded] = useFonts({
-    'Formula1-Black':   require('./assets/fonts/Formula1-Black.ttf'),
-    'Formula1-Bold':    require('./assets/fonts/Formula1-Bold_web_0.ttf'),
-    'Formula1-Regular': require('./assets/fonts/Formula1-Regular_web_0.ttf'),
-    'Formula1-Italic':  require('./assets/fonts/Formula1_Display-Italic_Italic.ttf'),
+  const [screen, setScreen] = useState<Screen>('ready');
+  const [selectedCircuitId, setSelectedCircuitId] = useState(DEFAULT_CIRCUIT_ID);
+  const [records, setRecords] = useState<PaceRecords>({
+    bestEverSecPerKm: Number.POSITIVE_INFINITY,
+    todayBestSecPerKm: Number.POSITIVE_INFINITY,
   });
-  const goRunning = useCallback(() => setScreen('running'), []);
-  const goResult  = useCallback(() => setScreen('result'), []);
-  const goNew     = useCallback(() => { resetRun(); setScreen('countdown'); }, [resetRun]);
+  const [profile] = useState<UserProfile>({
+    displayName: 'LEC',
+    nameTagAccentColor: '#E03A3E',
+  });
 
-  if (!fontsLoaded) return <View style={s.bg} />;
+  const selectedCircuit =
+    useMemo(
+      () => CIRCUITS.find((item) => item.id === selectedCircuitId) ?? CIRCUITS[0],
+      [selectedCircuitId],
+    );
+
+  const startRun = useCallback(() => setScreen('countdown'), []);
+  const startMeasuring = useCallback(() => setScreen('running'), []);
+  const stopRun = useCallback(() => setScreen('ready'), []);
+
+  const handlePaceSample = useCallback((paceSecPerKm: number) => {
+    setRecords((prev) => ({
+      bestEverSecPerKm: Math.min(prev.bestEverSecPerKm, paceSecPerKm),
+      todayBestSecPerKm: Math.min(prev.todayBestSecPerKm, paceSecPerKm),
+    }));
+  }, []);
 
   return (
-    <View style={s.root}>
+    <View style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor="#17171C" />
-      {screen === 'countdown' && <CountdownScreen onFinish={goRunning} />}
-      {screen === 'running'   && <RunningScreen   onStop={goResult}  />}
-      {screen === 'result'    && <View style={s.bg} />}
+      {screen === 'ready' && (
+        <ReadyScreen
+          circuits={CIRCUITS}
+          selectedCircuitId={selectedCircuit.id}
+          onSelectCircuit={setSelectedCircuitId}
+          onStart={startRun}
+          profile={profile}
+        />
+      )}
+      {screen === 'countdown' && <CountdownScreen onFinish={startMeasuring} />}
+      {screen === 'running' && (
+        <RunningScreen
+          circuit={selectedCircuit}
+          profile={profile}
+          records={records}
+          onStop={stopRun}
+          onPaceSample={handlePaceSample}
+        />
+      )}
     </View>
   );
 }
 
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#17171C' },
-  bg:   { flex: 1, backgroundColor: '#17171C' },
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: '#17171C',
+  },
 });

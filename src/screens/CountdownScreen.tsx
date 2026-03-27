@@ -1,61 +1,71 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { Dimensions, StyleSheet, Text, View } from 'react-native';
 
-const { width: W } = Dimensions.get('window');
-const SCALE = W / 402;
+const { width: screenWidth } = Dimensions.get('window');
+const scale = screenWidth / 402;
 
 const DOT_SIZE = 45;
 const DOT_GAP = 17;
 const DOT_ROW_GAP = 21;
-const DOT_INACTIVE = '#2A3140';
+const DOT_INACTIVE = '#333D48';
 const DOT_ACTIVE = ['#FF6525', '#F85C2A', '#F04A2A', '#E84535', '#E03A3E'];
 
-function getActiveDots(count: number): Set<string> {
+function getActiveDotMap(count: number): Set<string> {
   const active = new Set<string>();
-  const num = 6 - count;
-  for (let i = 0; i < num; i++) {
+  const litCount = Math.max(0, 6 - count);
+  for (let i = 0; i < litCount; i += 1) {
     active.add(`1-${4 - i}`);
   }
   return active;
 }
 
-export default function CountdownScreen({ onFinish }: { onFinish: () => void }) {
+type CountdownScreenProps = {
+  onFinish: () => void;
+};
+
+export default function CountdownScreen({ onFinish }: CountdownScreenProps) {
   const [count, setCount] = useState(5);
-  const [isGo, setIsGo] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showGo, setShowGo] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    function step(n: number) {
-      const next = n - 1;
-      if (next <= 0) {
-        setIsGo(true);
-        timer.current = setTimeout(onFinish, 900);
+    const tick = (n: number) => {
+      if (n <= 1) {
+        setCount(1);
+        setShowGo(true);
+        timeoutRef.current = setTimeout(onFinish, 800);
         return;
       }
-      setCount(next);
-      timer.current = setTimeout(() => step(next), 1000);
-    }
-    timer.current = setTimeout(() => step(5), 1000);
-    return () => { if (timer.current) clearTimeout(timer.current); };
-  }, []);
 
-  const activeDots = getActiveDots(count);
+      setCount(n - 1);
+      timeoutRef.current = setTimeout(() => tick(n - 1), 1000);
+    };
+
+    timeoutRef.current = setTimeout(() => tick(5), 1000);
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [onFinish]);
+
+  const activeDots = getActiveDotMap(count);
 
   return (
-    <View style={s.container}>
-      <Text style={s.number}>{isGo ? 'Go!' : count}</Text>
-      {!isGo && (
-        <View style={s.dotsWrap}>
+    <View style={styles.container}>
+      <Text style={styles.number}>{showGo ? 'Go!' : count}</Text>
+      {!showGo && (
+        <View style={styles.dotWrap}>
           {[0, 1].map((row) => (
-            <View key={row} style={s.dotsRow}>
+            <View key={row} style={styles.dotRow}>
               {[0, 1, 2, 3, 4].map((col) => {
-                const isActive = activeDots.has(`${row}-${col}`);
+                const active = activeDots.has(`${row}-${col}`);
                 return (
                   <View
                     key={col}
                     style={[
-                      s.dot,
-                      { backgroundColor: isActive ? DOT_ACTIVE[4 - col] : DOT_INACTIVE },
+                      styles.dot,
+                      { backgroundColor: active ? DOT_ACTIVE[4 - col] : DOT_INACTIVE },
                     ]}
                   />
                 );
@@ -68,7 +78,7 @@ export default function CountdownScreen({ onFinish }: { onFinish: () => void }) 
   );
 }
 
-const s = StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#17171C',
@@ -76,24 +86,22 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   number: {
-    fontFamily: 'Formula1-Black',
-    fontSize: 130 * SCALE,
     color: '#E03A3E',
-    letterSpacing: 6.5,
-    textAlign: 'center',
-    marginBottom: 80 * SCALE,
-    includeFontPadding: false,
+    fontSize: 130 * scale,
+    letterSpacing: 5,
+    fontWeight: '900',
+    marginBottom: 80 * scale,
   },
-  dotsWrap: {
-    gap: DOT_ROW_GAP * SCALE,
+  dotWrap: {
+    gap: DOT_ROW_GAP * scale,
   },
-  dotsRow: {
+  dotRow: {
     flexDirection: 'row',
-    gap: DOT_GAP * SCALE,
+    gap: DOT_GAP * scale,
   },
   dot: {
-    width: DOT_SIZE * SCALE,
-    height: DOT_SIZE * SCALE,
-    borderRadius: (DOT_SIZE * SCALE) / 2,
+    width: DOT_SIZE * scale,
+    height: DOT_SIZE * scale,
+    borderRadius: 999,
   },
 });

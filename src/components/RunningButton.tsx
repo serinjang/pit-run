@@ -8,12 +8,12 @@ import Svg, { Circle, Rect, Path } from 'react-native-svg';
 
 interface Props {
   type: 'pause' | 'stop' | 'play';
-  color: string;       // 섹터 메인 색상 (e.g. '#FCB827')
-  bgColor: string;     // 섹터 배경 색상 (e.g. '#FFDD94')
+  color: string;
+  bgColor?: string;
   size?: number;
 }
 
-export default function RunningButton({ type, color, bgColor, size = 76 }: Props) {
+export default function RunningButton({ type, color, bgColor = color, size = 76 }: Props) {
   const s = size / 76; // scale factor
   return (
     <Svg width={size} height={size} viewBox="0 0 76 76" fill="none">
