@@ -1,14 +1,9 @@
 import React from 'react';
-import Svg, { Rect, Path, G, ClipPath, Defs } from 'react-native-svg';
+import Svg, { Path, Rect, G, ClipPath, Defs } from 'react-native-svg';
 
-interface Props {
-  width?: number;
-  height?: number;
-}
-
-export default function ChinaFlag({ width = 17, height = 11 }: Props) {
+export default function ChinaFlag() {
   return (
-    <Svg width={width} height={height} viewBox="0 0 17 11" fill="none">
+    <Svg width="17" height="11" viewBox="0 0 17 11" fill="none">
       <Defs>
         <ClipPath id="cfClip">
           <Rect width="17" height="11" rx="2" fill="white" />

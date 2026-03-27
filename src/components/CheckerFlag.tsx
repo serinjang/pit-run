@@ -1,14 +1,9 @@
 import React from 'react';
 import Svg, { Path } from 'react-native-svg';
 
-interface Props {
-  width?: number;
-  height?: number;
-}
-
-export default function CheckerFlag({ width = 32, height = 27 }: Props) {
+export default function CheckerFlag() {
   return (
-    <Svg width={width} height={height} viewBox="0 0 32 27" fill="none">
+    <Svg width="32" height="27" viewBox="0 0 32 27" fill="none">
       <Path d="M28.3702 13.2805L29.9338 8.97754L25.6309 7.41395L24.0673 11.7169L28.3702 13.2805Z" fill="#F8F7F8"/>
       <Path d="M22.5084 16.0251L24.072 11.7222L19.7691 10.1586L18.2055 14.4615L22.5084 16.0251Z" fill="#F8F7F8"/>
       <Path d="M25.2408 21.8713L26.8044 17.5684L22.5015 16.0048L20.9379 20.3077L25.2408 21.8713Z" fill="#F8F7F8"/>
