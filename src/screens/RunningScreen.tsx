@@ -1,0 +1,200 @@
+import React, { useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Dimensions,
+  TouchableOpacity,
+} from 'react-native';
+import { useRunStore } from '../store/runStore';
+import { useRunning } from '../hooks/useRunning';
+import { fmtTime, fmtPace, fmtDist } from '../utils/format';
+import { COLORS } from '../constants/colors';
+import { CIRCUIT_KM } from '../constants/tires';
+
+const { width: W, height: H } = Dimensions.get('window');
+
+// 서킷 SVG path (상하이)
+const CIRCUIT_PATH =
+  'M106.033 90.5001L132.665 17.5331C133.833 14.3174 135.554 11.2902 137.891 8.80303C142.036 4.39403 149.259 -0.0149686 160.124 4.20561C160.124 4.20561 172.283 8.68998 168.641 20.6106C168.641 20.6106 165.664 28.9136 159.546 27.9715C158.077 27.7454 156.758 26.9415 155.715 25.8863C154.76 24.9066 153.517 23.4118 152.6 21.4397C151.758 19.6434 150.075 18.94 148.555 18.6887C146.382 18.337 144.108 18.8395 142.488 20.3217C141.106 21.5778 139.926 23.7258 140.767 27.2681C142.463 34.3401 148.517 38.2717 148.517 38.2717C148.517 38.2717 151.947 41.1357 156.707 40.784C161.468 40.4323 215.695 32.7699 215.695 32.7699C215.695 32.7699 219.438 31.9409 224.011 33.2221C228.583 34.5034 263.754 43.0827 263.754 43.0827C263.754 43.0827 270.864 45.2684 265.94 50.5818C261.016 55.8952 250.276 56.7117 250.276 56.7117C250.276 56.7117 226.962 57.4528 206.94 54.8526C186.917 52.2399 178.828 67.8912 178.828 67.8912C178.828 67.8912 171.442 78.5557 179.87 95.2998C180.988 97.5106 182.37 99.5832 183.865 101.568C187.294 106.14 195.296 118.902 186.993 129.265C183.099 134.127 176.868 136.438 170.663 135.973C167.711 135.747 163.855 135.22 158.868 134.152C157.335 133.825 155.728 133.75 154.208 134.114C150.992 134.88 146.998 137.594 150.464 146.751L153.542 155.267C153.542 155.267 154.484 159.061 159.936 159.174C165.387 159.287 253.203 161.661 253.203 161.661C253.203 161.661 258.202 161.711 256.532 155.531C254.861 149.351 251.608 143.698 260.539 141.563C263.641 140.822 266.907 140.897 269.972 141.739C276.554 143.548 286.754 149.15 281.026 166.359C281.026 166.359 275.06 181.118 258.918 181.269C242.777 181.42 4.41473 182.5 4.41473 182.5C4.41473 182.5 0.483053 182.01 3.88715 177.702C5.20608 176.018 7.44199 174.7 9.67789 173.695C13.1448 172.15 16.9006 171.371 20.6941 171.22L75.2602 169.047C75.2602 169.047 77.7724 168.494 78.3754 166.359L78.3628 166.309L105.303 92.5001';
+
+interface Props {
+  onStop: () => void;
+}
+
+export default function RunningScreen({ onStop }: Props) {
+  const {
+    distKm, elapsedMs, paceS, sector,
+    isPaused, pauseRun, resumeRun, stopRun, startRun,
+  } = useRunStore();
+
+  // 러닝 루프 시작
+  useRunning();
+
+  useEffect(() => {
+    startRun();
+  }, []);
+
+  const cfg = COLORS.sector[sector];
+
+  return (
+    <View style={[styles.container, { backgroundColor: COLORS.bg }]}>
+
+      {/* 국기 + 서킷명 */}
+      <View style={styles.circuitRow}>
+        <Text style={styles.flag}>🇨🇳</Text>
+        <Text style={styles.circuitName}>Shanghai {CIRCUIT_KM}km</Text>
+      </View>
+
+      {/* 거리 (대형) */}
+      <Text style={[styles.dist, { color: cfg.start }]}>
+        {fmtDist(distKm)}
+      </Text>
+
+      {/* TIME / PACE */}
+      <View style={styles.statsRow}>
+        <View style={styles.statBlock}>
+          <Text style={styles.statLabel}>TIME</Text>
+          <Text style={styles.statValue}>{fmtTime(elapsedMs)}</Text>
+        </View>
+        <View style={styles.statBlock}>
+          <Text style={styles.statLabel}>PACE</Text>
+          <Text style={styles.statValue}>{fmtPace(paceS)}</Text>
+        </View>
+      </View>
+
+      {/* 서킷 맵 placeholder (react-native-svg로 구현 예정) */}
+      <View style={styles.circuitWrap}>
+        <Text style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12, fontFamily: 'Formula1-Regular' }}>
+          CIRCUIT MAP
+        </Text>
+      </View>
+
+      {/* 버튼 */}
+      <View style={styles.btnArea}>
+        {isPaused ? (
+          <>
+            {/* STOP */}
+            <TouchableOpacity
+              style={[styles.btn, { backgroundColor: `${cfg.start}22` }]}
+              onPress={() => { stopRun(); onStop(); }}
+            >
+              <View style={[styles.stopIcon, { backgroundColor: cfg.start }]} />
+            </TouchableOpacity>
+            {/* PLAY */}
+            <TouchableOpacity
+              style={[styles.btn, { backgroundColor: `${cfg.start}22` }]}
+              onPress={resumeRun}
+            >
+              <View style={[styles.playIcon, { borderLeftColor: cfg.start }]} />
+            </TouchableOpacity>
+          </>
+        ) : (
+          // PAUSE
+          <TouchableOpacity
+            style={[styles.btn, { backgroundColor: `${cfg.start}22` }]}
+            onPress={pauseRun}
+          >
+            <View style={styles.pauseRow}>
+              <View style={[styles.pauseBar, { backgroundColor: cfg.start }]} />
+              <View style={[styles.pauseBar, { backgroundColor: cfg.start }]} />
+            </View>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
+
+const BTN_SIZE = 76;
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    paddingTop: 52,
+  },
+  circuitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 36,
+  },
+  flag: {
+    fontSize: 13,
+  },
+  circuitName: {
+    fontFamily: 'Formula1-Regular',
+    fontSize: 13,
+    color: COLORS.text.secondary,
+    letterSpacing: -0.65,
+  },
+  dist: {
+    fontFamily: 'Formula1-Black',
+    fontSize: 130,
+    lineHeight: 156,
+    letterSpacing: 6.5,
+    paddingHorizontal: 36,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 36,
+    marginTop: 8,
+  },
+  statBlock: {
+    gap: 4,
+  },
+  statLabel: {
+    fontFamily: 'Formula1-Regular',
+    fontSize: 13,
+    color: COLORS.text.secondary,
+    letterSpacing: -0.65,
+  },
+  statValue: {
+    fontFamily: 'Formula1-Bold',
+    fontSize: 30,
+    color: COLORS.text.primary,
+  },
+  circuitWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 61,
+  },
+  btnArea: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 24,
+    paddingBottom: 48,
+  },
+  btn: {
+    width: BTN_SIZE,
+    height: BTN_SIZE,
+    borderRadius: BTN_SIZE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pauseRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  pauseBar: {
+    width: 6,
+    height: 15,
+    borderRadius: 1,
+  },
+  stopIcon: {
+    width: 16,
+    height: 16,
+    borderRadius: 1,
+  },
+  playIcon: {
+    width: 0,
+    height: 0,
+    borderTopWidth: 10,
+    borderBottomWidth: 10,
+    borderLeftWidth: 16,
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+  },
+});
