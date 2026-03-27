@@ -27,7 +27,7 @@ export default function CountdownScreen({ onFinish }: { onFinish: () => void }) 
   useEffect(() => {
     function step(n: number) {
       const next = n - 1;
-      if (next < 0) {
+      if (next <= 0) {
         setIsGo(true);
         timer.current = setTimeout(onFinish, 900);
         return;

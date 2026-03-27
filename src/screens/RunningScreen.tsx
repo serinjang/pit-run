@@ -6,6 +6,12 @@ import { fmtTime, fmtPace, fmtDist } from '../utils/format';
 import { COLORS } from '../constants/colors';
 import { CIRCUIT_KM } from '../constants/tires';
 import CircuitMap from '../components/CircuitMap';
+import PauseButton from '../components/PauseButton';
+import StopButton from '../components/StopButton';
+import PlayButton from '../components/PlayButton';
+import NameTag from '../components/NameTag';
+import ChinaFlag from '../components/ChinaFlag';
+import CheckerFlag from '../components/CheckerFlag';
 
 const { width: W } = Dimensions.get('window');
 const SCALE = W / 402;
@@ -15,14 +21,31 @@ export default function RunningScreen({ onStop }: { onStop: () => void }) {
   useRunning();
   useEffect(() => { startRun(); }, []);
   const cfg = COLORS.sector[sector];
+  const distText = fmtDist(distKm);
+  const distFontSize = getDistFontSize(distText, W);
+  const distLineHeight = Math.round(distFontSize * 1.2);
 
   return (
     <View style={s.container}>
       <View style={s.circuitRow}>
-        <View style={s.flagBox} />
+        <ChinaFlag />
         <Text style={s.circuitName}>Shanghai {CIRCUIT_KM}km</Text>
       </View>
-      <Text style={[s.dist, { color: cfg.start }]}>{fmtDist(distKm)}</Text>
+      <Text
+        style={[
+          s.dist,
+          {
+            color: cfg.start,
+            fontSize: distFontSize,
+            lineHeight: distLineHeight,
+          },
+        ]}
+        numberOfLines={1}
+        allowFontScaling={false}
+        ellipsizeMode="clip"
+      >
+        {distText}
+      </Text>
       <View style={s.statsRow}>
         <View>
           <Text style={s.statLabel}>TIME</Text>
@@ -33,23 +56,32 @@ export default function RunningScreen({ onStop }: { onStop: () => void }) {
           <Text style={s.statValue}>{fmtPace(paceS)}</Text>
         </View>
       </View>
-      <CircuitMap progress={prog} colorStart={cfg.start} colorEnd={cfg.end} />
+      <View style={s.mapWrap}>
+        <CircuitMap progress={prog} colorStart={cfg.start} colorEnd={cfg.end} />
+        <View style={s.nameTagWrap}>
+          <NameTag
+            label="LEC"
+            borderColorStart={cfg.start}
+            borderColorEnd={cfg.end}
+          />
+        </View>
+        <View style={s.checkerWrap}>
+          <CheckerFlag />
+        </View>
+      </View>
       <View style={s.btnArea}>
         {isPaused ? (
           <>
-            <TouchableOpacity style={[s.btn, { backgroundColor: `${cfg.start}22` }]} onPress={() => { stopRun(); onStop(); }}>
-              <View style={[s.stopIcon, { backgroundColor: cfg.start }]} />
+            <TouchableOpacity onPress={() => { stopRun(); onStop(); }}>
+              <StopButton color={cfg.start} />
             </TouchableOpacity>
-            <TouchableOpacity style={[s.btn, { backgroundColor: `${cfg.start}22` }]} onPress={resumeRun}>
-              <View style={[s.playTriangle, { borderLeftColor: cfg.start }]} />
+            <TouchableOpacity onPress={resumeRun}>
+              <PlayButton color={cfg.start} />
             </TouchableOpacity>
           </>
         ) : (
-          <TouchableOpacity style={[s.btn, { backgroundColor: `${cfg.start}22` }]} onPress={pauseRun}>
-            <View style={s.pauseRow}>
-              <View style={[s.pauseBar, { backgroundColor: cfg.start }]} />
-              <View style={[s.pauseBar, { backgroundColor: cfg.start }]} />
-            </View>
+          <TouchableOpacity onPress={pauseRun}>
+            <PauseButton color={cfg.start} />
           </TouchableOpacity>
         )}
       </View>
@@ -57,20 +89,32 @@ export default function RunningScreen({ onStop }: { onStop: () => void }) {
   );
 }
 
-const BTN = 76 * SCALE;
+const DIST_BASE_SIZE = 130 * SCALE;
+const DIST_LETTER_SPACING = 6.5;
+const DIST_SIDE_PADDING = 36 * SCALE * 2;
+const DIST_MIN_SIZE = 72;
+
+function getDistFontSize(text: string, screenWidth: number): number {
+  const charCount = Math.max(text.length, 1);
+  const available = Math.max(screenWidth - DIST_SIDE_PADDING, 1);
+  const approxCharWidthAtBase = DIST_BASE_SIZE * 0.62;
+  const estimatedWidthAtBase =
+    charCount * approxCharWidthAtBase +
+    (charCount - 1) * DIST_LETTER_SPACING;
+  const scale = Math.min(1, available / estimatedWidthAtBase);
+  return Math.max(DIST_MIN_SIZE, Math.floor(DIST_BASE_SIZE * scale));
+}
+
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#17171C', paddingTop: 52 },
   circuitRow: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 36 * SCALE, marginBottom: 2 },
-  flagBox: { width: 17, height: 11, backgroundColor: '#E03A3E', borderRadius: 2 },
   circuitName: { fontFamily: 'Formula1-Regular', fontSize: 13, color: 'rgba(255,255,255,0.5)', letterSpacing: -0.65 },
-  dist: { fontFamily: 'Formula1-Black', fontSize: 130 * SCALE, lineHeight: 156 * SCALE, letterSpacing: 6.5, paddingHorizontal: 36 * SCALE, includeFontPadding: false },
+  dist: { fontFamily: 'Formula1-Black', letterSpacing: DIST_LETTER_SPACING, paddingHorizontal: 36 * SCALE, textAlign: 'center', includeFontPadding: false },
   statsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 36 * SCALE, marginTop: 8 },
   statLabel: { fontFamily: 'Formula1-Regular', fontSize: 13, color: 'rgba(255,255,255,0.5)', letterSpacing: -0.65 },
   statValue: { fontFamily: 'Formula1-Bold', fontSize: 30, color: '#FFFFFF', includeFontPadding: false },
+  mapWrap: { flex: 1, position: 'relative' },
+  nameTagWrap: { position: 'absolute', top: 20, right: 20 },
+  checkerWrap: { position: 'absolute', top: 52, right: 20 },
   btnArea: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 24, paddingBottom: 48, paddingTop: 16 },
-  btn: { width: BTN, height: BTN, borderRadius: BTN / 2, alignItems: 'center', justifyContent: 'center' },
-  pauseRow: { flexDirection: 'row', gap: 8 },
-  pauseBar: { width: 6, height: 18, borderRadius: 2 },
-  stopIcon: { width: 18, height: 18, borderRadius: 2 },
-  playTriangle: { width: 0, height: 0, borderTopWidth: 11, borderBottomWidth: 11, borderLeftWidth: 18, borderTopColor: 'transparent', borderBottomColor: 'transparent', marginLeft: 4 },
 });
