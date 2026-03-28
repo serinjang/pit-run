@@ -7,15 +7,14 @@ export const CIRCUIT_PATH = 'M106.033 90.5001L132.665 17.5331C133.833 14.3174 13
 
 interface Props {
   progress: number;
+  startColor?: string;
+  endColor?: string;
 }
 
 export const CIRCUIT_VIEWBOX = { width: 286, height: 185 } as const;
 
 const circuitProps = new svgPathProperties(CIRCUIT_PATH);
 const TOTAL_LENGTH = circuitProps.getTotalLength();
-
-const START_COLOR = { r: 0xFC, g: 0xB8, b: 0x27 };
-const END_COLOR = { r: 0xFC, g: 0x8E, b: 0x28 };
 
 function lerp(a: number, b: number, t: number) {
   return Math.round(a + (b - a) * t);
@@ -25,11 +24,22 @@ function toHex(v: number) {
   return v.toString(16).padStart(2, '0').toUpperCase();
 }
 
-function colorAt(t: number) {
+function parseHexColor(hex: string) {
+  const normalized = hex.replace('#', '');
+  return {
+    r: Number.parseInt(normalized.slice(0, 2), 16),
+    g: Number.parseInt(normalized.slice(2, 4), 16),
+    b: Number.parseInt(normalized.slice(4, 6), 16),
+  };
+}
+
+function colorAt(startHex: string, endHex: string, t: number) {
   const clamped = Math.max(0, Math.min(1, t));
-  const r = lerp(START_COLOR.r, END_COLOR.r, clamped);
-  const g = lerp(START_COLOR.g, END_COLOR.g, clamped);
-  const b = lerp(START_COLOR.b, END_COLOR.b, clamped);
+  const start = parseHexColor(startHex);
+  const end = parseHexColor(endHex);
+  const r = lerp(start.r, end.r, clamped);
+  const g = lerp(start.g, end.g, clamped);
+  const b = lerp(start.b, end.b, clamped);
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
@@ -51,7 +61,11 @@ export function getCircuitTangentAtProgress(progress: number) {
   return { x: dx / mag, y: dy / mag };
 }
 
-export default function CircuitMap({ progress }: Props) {
+export default function CircuitMap({
+  progress,
+  startColor = '#FCB827',
+  endColor = '#FC8A27',
+}: Props) {
   const p = Math.max(0, Math.min(progress, 1));
   const drawn = Math.max(2, p * TOTAL_LENGTH);
 
@@ -62,14 +76,14 @@ export default function CircuitMap({ progress }: Props) {
 
     for (let i = 0; i < count; i += 1) {
       out.push({
-        color: colorAt(count <= 1 ? 0 : i / (count - 1)),
+        color: colorAt(startColor, endColor, count <= 1 ? 0 : i / (count - 1)),
         gap: i * segLen,
         len: segLen,
       });
     }
 
     return out;
-  }, [drawn]);
+  }, [drawn, endColor, startColor]);
 
   return (
     <View style={s.wrap}>

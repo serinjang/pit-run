@@ -58,6 +58,7 @@ const MIN_GAP_CIRCUIT_TO_CONTROLS = 60;
 const MIN_GAP_TEXT_TO_CIRCUIT = 40;
 const MIN_TOP_GAP_FOR_META = 80;
 const CIRCUIT_STROKE_WIDTH = 5;
+const SHOW_DEBUG_SECTOR_SWITCH = __DEV__;
 
 type RunningScreenProps = {
   onStop: () => void;
@@ -93,6 +94,7 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
     startRun,
     closeBoxBox,
     setTire,
+    setSector,
   } = useRunStore();
 
   useRunning();
@@ -308,7 +310,7 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
           height: circuitH,
         }}
       >
-        <CircuitMap progress={prog} />
+        <CircuitMap progress={prog} startColor={cfg.start} endColor={cfg.end} />
       </View>
 
 
@@ -320,8 +322,8 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
       <View style={{ position: 'absolute', left: nameTagLeft, top: nameTagTop }}>
         <NameTag
           label={nameTagLabel}
-          colorStart="#FC8A27"
-          colorEnd="#FCB827"
+          colorStart={cfg.end}
+          colorEnd={cfg.start}
           accentColor="#E03A3E"
           gradientX1={gradientX1}
           gradientY1={gradientY1}
@@ -329,6 +331,20 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
           gradientY2={gradientY2}
         />
       </View>
+
+      {SHOW_DEBUG_SECTOR_SWITCH && (
+        <View style={st.debugSectorWrap}>
+          <Pressable onPress={() => setSector('yellow')} style={[st.debugSectorBtn, { backgroundColor: BTN_BG.yellow }]}>
+            <Text style={st.debugSectorTxt}>Y</Text>
+          </Pressable>
+          <Pressable onPress={() => setSector('purple')} style={[st.debugSectorBtn, { backgroundColor: BTN_BG.purple }]}>
+            <Text style={st.debugSectorTxt}>P</Text>
+          </Pressable>
+          <Pressable onPress={() => setSector('green')} style={[st.debugSectorBtn, { backgroundColor: BTN_BG.green }]}>
+            <Text style={st.debugSectorTxt}>G</Text>
+          </Pressable>
+        </View>
+      )}
 
       <View
         style={{
@@ -419,6 +435,30 @@ const st = StyleSheet.create({
     opacity: 0,
     left: -9999,
     top: -9999,
+    includeFontPadding: false,
+  },
+  debugSectorWrap: {
+    position: 'absolute',
+    top: 44,
+    right: 16,
+    flexDirection: 'row',
+    gap: 8,
+    zIndex: 20,
+  },
+  debugSectorBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  debugSectorTxt: {
+    color: '#17171C',
+    fontFamily: 'Formula1-Bold',
+    fontSize: 11,
+    lineHeight: 12,
     includeFontPadding: false,
   },
 });
