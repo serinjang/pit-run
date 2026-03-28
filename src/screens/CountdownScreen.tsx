@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Dimensions, StyleSheet, Text, View } from 'react-native';
+import { useDistanceDisplayFont } from '../hooks/useDistanceDisplayFont';
 
 const { width: screenWidth } = Dimensions.get('window');
 const scale = screenWidth / 402;
@@ -27,6 +28,7 @@ export default function CountdownScreen({ onFinish }: CountdownScreenProps) {
   const [count, setCount] = useState(5);
   const [showGo, setShowGo] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { fontSize, lineHeight, sampleText, onSampleLayout } = useDistanceDisplayFont(screenWidth);
 
   useEffect(() => {
     const tick = (n: number) => {
@@ -53,7 +55,15 @@ export default function CountdownScreen({ onFinish }: CountdownScreenProps) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.number}>{showGo ? 'Go!' : count}</Text>
+      <Text style={[styles.number, { fontSize, lineHeight }]}>{showGo ? 'Go!' : count}</Text>
+      <Text
+        numberOfLines={1}
+        allowFontScaling={false}
+        onLayout={onSampleLayout}
+        style={styles.hiddenMeasure}
+      >
+        {sampleText}
+      </Text>
       {!showGo && (
         <View style={styles.dotWrap}>
           {[0, 1].map((row) => (
@@ -87,10 +97,10 @@ const styles = StyleSheet.create({
   },
   number: {
     color: '#E03A3E',
-    fontSize: 130 * scale,
     letterSpacing: 5,
     fontFamily: 'Formula1-Black',
     marginBottom: 80 * scale,
+    includeFontPadding: false,
   },
   dotWrap: {
     gap: DOT_ROW_GAP * scale,
@@ -103,5 +113,16 @@ const styles = StyleSheet.create({
     width: DOT_SIZE * scale,
     height: DOT_SIZE * scale,
     borderRadius: 999,
+  },
+  hiddenMeasure: {
+    position: 'absolute',
+    opacity: 0,
+    left: -9999,
+    top: -9999,
+    includeFontPadding: false,
+    fontFamily: 'Formula1-Black',
+    fontSize: 130.2486572265625,
+    lineHeight: 156,
+    letterSpacing: 6.5,
   },
 });

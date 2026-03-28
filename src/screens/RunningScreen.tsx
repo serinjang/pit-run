@@ -2,9 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRunStore } from '../store/runStore';
+import { useDistanceDisplayFont } from '../hooks/useDistanceDisplayFont';
 import { useRunning } from '../hooks/useRunning';
 import { fmtTime, fmtPace, fmtDist } from '../utils/format';
-import { getDriverCode } from '../utils/driverCode';
+import { getDriverCode, getDriverDisplayName } from '../utils/driverCode';
 import { COLORS } from '../constants/colors';
 import { CIRCUIT_KM } from '../constants/tires';
 import PauseButton from '../components/PauseButton';
@@ -47,9 +48,6 @@ const TAG_BORDER = {
   green: { start: '#2CC37F', end: '#59B345' },
 } as const;
 
-const DIST_BASE_SIZE = 130.2486572265625;
-const DIST_LINE_HEIGHT_RATIO = 156 / DIST_BASE_SIZE;
-const DIST_FIT_SAMPLE = '9999.99';
 const PACE_FIT_SAMPLE = '99\'59"';
 const STAT_VALUE_LINE_HEIGHT = 36;
 const CONTROL_BUTTON_SIZE = 76;
@@ -109,23 +107,20 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
   const circuitLabel = circuit?.displayName ?? 'Shanghai';
   const circuitKm = circuit?.distanceKm ?? CIRCUIT_KM;
   const nameTagLabel = getDriverCode(profile?.displayName ?? '');
+  const boxBoxDriverName = getDriverDisplayName(profile?.displayName ?? '');
+  const boxBoxTeamColor = profile?.nameTagAccentColor ?? '#E03A3E';
 
   const DIST_LEFT = s(36);
   const DIST_RIGHT = windowW - DIST_LEFT;
   const distFrameWidth = DIST_RIGHT - DIST_LEFT;
 
-  const distBaseSize = DIST_BASE_SIZE;
-  const initialDistAvailableWidth = initialW - DIST_LEFT * 2;
-  const [distSampleWidth, setDistSampleWidth] = useState<number>(0);
   const [distRenderWidth, setDistRenderWidth] = useState<number>(0);
-
-  const distFontSize = useMemo(() => {
-    if (distSampleWidth <= 0) return distBaseSize;
-    const scale = Math.min(1, initialDistAvailableWidth / distSampleWidth);
-    return distBaseSize * scale;
-  }, [distBaseSize, distSampleWidth, initialDistAvailableWidth]);
-
-  const distLineHeight = distFontSize * DIST_LINE_HEIGHT_RATIO;
+  const {
+    fontSize: distFontSize,
+    lineHeight: distLineHeight,
+    sampleText: distFitSample,
+    onSampleLayout: onDistSampleLayout,
+  } = useDistanceDisplayFont(initialW);
   const distStartX = (DIST_LEFT + DIST_RIGHT) / 2 - distRenderWidth / 2;
   const distEndX = distStartX + distRenderWidth;
   const distAnchorLeft = distRenderWidth > 0 ? distStartX : DIST_LEFT;
@@ -243,17 +238,14 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
           st.hiddenMeasure,
           {
             fontFamily: 'Formula1-Black',
-            fontSize: distBaseSize,
-            lineHeight: distBaseSize * DIST_LINE_HEIGHT_RATIO,
+            fontSize: 130.2486572265625,
+            lineHeight: 156,
             letterSpacing: 6.5,
           },
         ]}
-        onLayout={(e) => {
-          const w = e.nativeEvent.layout.width;
-          if (w > 0 && Math.abs(w - distSampleWidth) > 0.5) setDistSampleWidth(w);
-        }}
+        onLayout={onDistSampleLayout}
       >
-        {DIST_FIT_SAMPLE}
+        {distFitSample}
       </Text>
 
       <Text style={[st.lbl, { left: distStartX, top: statsLabelTop, fontSize: 13, lineHeight: 13 }]}>TIME</Text>
@@ -387,6 +379,8 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
 
       <BoxBoxSheet
         visible={boxBoxActive}
+        driverName={boxBoxDriverName}
+        teamColor={boxBoxTeamColor}
         onClose={closeBoxBox}
         onSelectTire={(tire) => {
           setTire(tire);

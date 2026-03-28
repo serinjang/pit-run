@@ -7,6 +7,8 @@ interface Props {
   visible: boolean;
   onSelectTire?: (tire: TireType) => void;
   onClose: () => void;
+  driverName?: string;
+  teamColor?: string;
 }
 
 const BAR_HEIGHTS = [28, 42, 34, 54, 46, 36, 46, 40, 32, 22, 34, 42, 50];
@@ -37,7 +39,13 @@ const WAVE_TARGET_COLUMN_WIDTH = 23;
 const WAVE_SIDE_FADE_WIDTH = 38;
 const WAVE_COLUMN_OVERLAP = 0.2;
 
-export default function BoxBoxSheet({ visible, onSelectTire, onClose }: Props) {
+export default function BoxBoxSheet({
+  visible,
+  onSelectTire,
+  onClose,
+  driverName = 'LECLERC',
+  teamColor = '#E03A3E',
+}: Props) {
   const { width: windowW } = useWindowDimensions();
   const [waveTime, setWaveTime] = useState(0);
   const rafRef = useRef<number | null>(null);
@@ -94,20 +102,23 @@ export default function BoxBoxSheet({ visible, onSelectTire, onClose }: Props) {
     };
   }, [visible]);
 
+  const waveStartColor = `rgba(${Number.parseInt(teamColor.slice(1, 3), 16)},${Number.parseInt(teamColor.slice(3, 5), 16)},${Number.parseInt(teamColor.slice(5, 7), 16)},0)`;
+  const waveEndColor = `rgba(${Number.parseInt(teamColor.slice(1, 3), 16)},${Number.parseInt(teamColor.slice(3, 5), 16)},${Number.parseInt(teamColor.slice(5, 7), 16)},1)`;
+
   if (!visible) return null;
 
   return (
     <View style={s.root} pointerEvents="box-none">
       <Pressable style={s.overlay} onPress={onClose} />
       <View style={[s.sheet, { height: sheetHeight }]}>
-        <Text style={s.driver}>LECLERC</Text>
+        <Text style={[s.driver, { color: teamColor }]}>{driverName}</Text>
 
         <View style={s.waveWrap}>
           <Svg width="100%" height="100%" viewBox={`0 0 ${waveWidth} ${WAVE_GROUP_HEIGHT}`} preserveAspectRatio="none" fill="none">
             <Defs>
               <LinearGradient id="waveColumn" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0%" stopColor="rgba(224,58,62,0)" />
-                <Stop offset="100%" stopColor="rgba(224,58,62,1)" />
+                <Stop offset="0%" stopColor={waveStartColor} />
+                <Stop offset="100%" stopColor={waveEndColor} />
               </LinearGradient>
               <LinearGradient id="waveLeftFade" x1="0" y1="32" x2={WAVE_SIDE_FADE_WIDTH} y2="32" gradientUnits="userSpaceOnUse">
                 <Stop offset="7%" stopColor="#202028" />
@@ -136,7 +147,7 @@ export default function BoxBoxSheet({ visible, onSelectTire, onClose }: Props) {
                 fill="url(#waveColumn)"
               />
             ))}
-            <Rect x={0} y={WAVE_BASE_Y_IN_GROUP} width={waveWidth} height={WAVE_BASE_HEIGHT} fill="#E03A3E" />
+            <Rect x={0} y={WAVE_BASE_Y_IN_GROUP} width={waveWidth} height={WAVE_BASE_HEIGHT} fill={teamColor} />
             <Rect x={0} y={-6} width={WAVE_SIDE_FADE_WIDTH} height={64} fill="url(#waveLeftFade)" />
             <Rect x={waveWidth - WAVE_SIDE_FADE_WIDTH} y={-6} width={WAVE_SIDE_FADE_WIDTH} height={64} fill="url(#waveRightFade)" />
           </Svg>
