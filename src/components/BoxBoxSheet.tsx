@@ -29,8 +29,8 @@ const DESC_LINE_HEIGHT = 24;
 const DESC_LINES = 2;
 const DETAIL_TO_PROGRESS_GAP = 20;
 const PROGRESS_TOP = DETAIL_TOP + DESC_LINE_HEIGHT * DESC_LINES + DETAIL_TO_PROGRESS_GAP;
-const COPY_TOP = PROGRESS_TOP + 76;
-const COPY_HEIGHT = 48;
+const COPY_TOP = 376;
+const COPY_HEIGHT = 58;
 const SHEET_BOTTOM_PADDING = 20;
 const BASE_SHEET_HEIGHT = 454;
 const WAVE_TARGET_COLUMN_WIDTH = 23;
@@ -246,7 +246,7 @@ const s = StyleSheet.create({
     position: 'absolute',
     left: 89,
     top: DETAIL_TEXT_TOP,
-    color: '#FFFFFF',
+    color: 'rgba(255,255,255,0.7)',
     fontFamily: 'Formula1-Italic',
     fontSize: 20,
     lineHeight: 24,
@@ -287,7 +287,7 @@ const s = StyleSheet.create({
     left: 20,
     right: 20,
     top: COPY_TOP,
-    height: 48,
+    height: COPY_HEIGHT,
     borderRadius: 12,
     backgroundColor: '#34343F',
     alignItems: 'center',
@@ -296,9 +296,9 @@ const s = StyleSheet.create({
   copyTxt: {
     color: '#FFFFFF',
     fontFamily: 'Formula1-Bold',
-    fontSize: 20,
-    lineHeight: 24,
-    letterSpacing: -0.2,
+    fontSize: 22,
+    lineHeight: 26,
+    letterSpacing: -0.22,
     includeFontPadding: false,
   },
 });

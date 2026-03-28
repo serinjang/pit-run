@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import SvgButton from '../components/SvgButton';
+import { getDriverCode } from '../utils/driverCode';
 
 type UserProfile = {
   displayName: string;
@@ -27,14 +28,6 @@ function toDriverNameCase(value: string) {
       return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
     })
     .join('');
-}
-
-function getPreviewCode(name: string) {
-  const trimmed = name.trim();
-  if (!trimmed) return 'ABC';
-  const tokens = trimmed.split(/\s+/).filter(Boolean);
-  const base = (tokens[tokens.length - 1] ?? '').slice(0, 3).toUpperCase();
-  return base || 'ABC';
 }
 
 export default function ProfileSetupScreen({ initialProfile, onComplete }: ProfileSetupScreenProps) {
@@ -75,7 +68,7 @@ export default function ProfileSetupScreen({ initialProfile, onComplete }: Profi
     return '';
   }, [numberFlashError]);
 
-  const previewCode = useMemo(() => getPreviewCode(displayName), [displayName]);
+  const previewCode = useMemo(() => getDriverCode(displayName), [displayName]);
   const previewNumber = normalizedNumber || '00';
   const previewColor = teamColor ?? PREVIEW_DEFAULT_COLOR;
 

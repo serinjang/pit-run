@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRunStore } from '../store/runStore';
 import { useRunning } from '../hooks/useRunning';
 import { fmtTime, fmtPace, fmtDist } from '../utils/format';
+import { getDriverCode } from '../utils/driverCode';
 import { COLORS } from '../constants/colors';
 import { CIRCUIT_KM } from '../constants/tires';
 import PauseButton from '../components/PauseButton';
@@ -107,7 +108,7 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
   const cfg = COLORS.sector[sector];
   const circuitLabel = circuit?.displayName ?? 'Shanghai';
   const circuitKm = circuit?.distanceKm ?? CIRCUIT_KM;
-  const nameTagLabel = profile?.displayName ?? 'Lec';
+  const nameTagLabel = getDriverCode(profile?.displayName ?? '');
 
   const DIST_LEFT = s(36);
   const DIST_RIGHT = windowW - DIST_LEFT;
