@@ -57,6 +57,7 @@ const CONTROLS_BOTTOM_SPACING = 32;
 const MIN_GAP_CIRCUIT_TO_CONTROLS = 60;
 const MIN_GAP_TEXT_TO_CIRCUIT = 40;
 const MIN_TOP_GAP_FOR_META = 80;
+const CIRCUIT_STROKE_WIDTH = 5;
 
 type RunningScreenProps = {
   onStop: () => void;
@@ -187,16 +188,20 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
   const gradientX2 = 0.5 - 0.5 * touchNx;
   const gradientY2 = 0.5 - 0.5 * touchNy;
 
+  // Anchor checker by its tilted rectangle (inside SVG) to the circuit start outline.
+  const checkerLeftRectAnchorX = 0;
+  const checkerAnchorY = 7.4;
+  const checkerOverlap = 0.8;
+  const startPointScreenX = circuitLeft + circuitOffsetX + startPoint.x * circuitScale;
+  const startPointScreenY = circuitTop + circuitOffsetY + startPoint.y * circuitScale;
+  const startPointLeftEdgeX = startPointScreenX - (CIRCUIT_STROKE_WIDTH * circuitScale) / 2;
+
   const nameTagW = 43;
   const nameTagH = 26;
   const nameTagLeft = circuitLeft + circuitOffsetX + circuitPoint.x * circuitScale - nameTagW / 2;
   const nameTagTop = circuitTop + circuitOffsetY + circuitPoint.y * circuitScale - nameTagH / 2;
 
-  // Anchor checker by its tilted rectangle (inside SVG) to the circuit start outline.
-  const checkerAnchorX = 10.84;
-  const checkerAnchorY = 7.4;
-  const checkerOverlap = 0.8;
-  const checkerLeft = circuitLeft + circuitOffsetX + startPoint.x * circuitScale - checkerAnchorX + checkerOverlap;
+  const checkerLeft = startPointLeftEdgeX - checkerLeftRectAnchorX + checkerOverlap;
   const checkerTop = circuitTop + circuitOffsetY + startPoint.y * circuitScale - checkerAnchorY;
 
   useEffect(() => {
