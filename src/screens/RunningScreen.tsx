@@ -195,7 +195,7 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
   const startPointScreenY = circuitTop + circuitOffsetY + startPoint.y * circuitScale;
   const startPointLeftEdgeX = startPointScreenX - (CIRCUIT_STROKE_WIDTH * circuitScale) / 2;
 
-  const nameTagW = 43;
+  const nameTagW = 47;
   const nameTagH = 26;
   const nameTagLeft = circuitLeft + circuitOffsetX + circuitPoint.x * circuitScale - nameTagW / 2;
   const nameTagTop = circuitTop + circuitOffsetY + circuitPoint.y * circuitScale - nameTagH / 2;
@@ -318,7 +318,7 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
           label={nameTagLabel}
           colorStart={cfg.end}
           colorEnd={cfg.start}
-          accentColor="#E03A3E"
+          accentColor={profile?.nameTagAccentColor ?? '#E03A3E'}
           gradientX1={gradientX1}
           gradientY1={gradientY1}
           gradientX2={gradientX2}
