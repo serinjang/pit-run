@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRunStore } from '../store/runStore';
 import { useRunning } from '../hooks/useRunning';
 import { fmtTime, fmtPace, fmtDist } from '../utils/format';
@@ -49,6 +50,13 @@ const DIST_BASE_SIZE = 130.2486572265625;
 const DIST_LINE_HEIGHT_RATIO = 156 / DIST_BASE_SIZE;
 const DIST_FIT_SAMPLE = '9999.99';
 const PACE_FIT_SAMPLE = '99\'59"';
+const STAT_VALUE_LINE_HEIGHT = 36;
+const CONTROL_BUTTON_SIZE = 76;
+const CONTROLS_TOP_SPACING = 20;
+const CONTROLS_BOTTOM_SPACING = 32;
+const MIN_GAP_CIRCUIT_TO_CONTROLS = 60;
+const MIN_GAP_TEXT_TO_CIRCUIT = 40;
+const MIN_TOP_GAP_FOR_META = 80;
 
 type RunningScreenProps = {
   onStop: () => void;
@@ -60,6 +68,7 @@ type RunningScreenProps = {
 
 export default function RunningScreen({ onStop, circuit, profile, onPaceSample }: RunningScreenProps) {
   const { width: windowW, height: windowH } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const [initialW] = useState(windowW);
   const [initialH] = useState(windowH);
 
@@ -116,11 +125,12 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
   const distEndX = distStartX + distRenderWidth;
   const distAnchorLeft = distRenderWidth > 0 ? distStartX : DIST_LEFT;
 
-  const distTop = t(174);
-  const metaTop = distTop - 20;
-  const statsLabelTop = distTop + distLineHeight + 28;
+  const baseDistTop = t(174);
+  const baseMetaTop = baseDistTop - 20;
+  const baseStatsLabelTop = baseDistTop + distLineHeight + 28;
   const statsLabelHeight = 13;
-  const statsValueTop = statsLabelTop + statsLabelHeight + 8;
+  const baseStatsValueTop = baseStatsLabelTop + statsLabelHeight + 8;
+  const baseStatsValueBottom = baseStatsValueTop + STAT_VALUE_LINE_HEIGHT;
 
   const paceValue = fmtPace(paceS);
   const [paceMaxWidth, setPaceMaxWidth] = useState<number>(0);
@@ -131,10 +141,35 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
   const paceLeft = paceRight - paceTextWidth;
   const paceLabelLeft = paceRight - paceCurrentStartOffset;
 
-  const circuitTop = t(482);
-  const circuitW = s(280.21);
-  const circuitH = t(180);
+  const baseCircuitW = s(280.21);
+  const baseCircuitH = t(180);
+  const controlsBottomPadding = insets.bottom + CONTROLS_BOTTOM_SPACING;
+  const controlsTop = windowH - (controlsBottomPadding + CONTROLS_TOP_SPACING + CONTROL_BUTTON_SIZE);
+  const statsValueBottomMax =
+    controlsTop - (MIN_GAP_CIRCUIT_TO_CONTROLS + MIN_GAP_TEXT_TO_CIRCUIT + baseCircuitH);
+  const requiredUpwardShift = Math.max(0, baseStatsValueBottom - statsValueBottomMax);
+  const maxUpwardShift = Math.max(0, baseMetaTop - MIN_TOP_GAP_FOR_META);
+  const upwardShift = Math.min(requiredUpwardShift, maxUpwardShift);
+
+  const distTop = baseDistTop - upwardShift;
+  const metaTop = baseMetaTop - upwardShift;
+  const statsLabelTop = baseStatsLabelTop - upwardShift;
+  const statsValueTop = baseStatsValueTop - upwardShift;
+  const statsValueBottom = baseStatsValueBottom - upwardShift;
+
+  // Fallback for short screens: shrink circuit to preserve vertical spacing constraints.
+  const availableCircuitHeight =
+    controlsTop - MIN_GAP_CIRCUIT_TO_CONTROLS - (statsValueBottom + MIN_GAP_TEXT_TO_CIRCUIT);
+  const circuitScaleFallback =
+    baseCircuitH > 0 ? Math.min(1, Math.max(0, availableCircuitHeight / baseCircuitH)) : 1;
+  const circuitW = baseCircuitW * circuitScaleFallback;
+  const circuitH = baseCircuitH * circuitScaleFallback;
   const circuitLeft = DIST_LEFT + (distFrameWidth - circuitW) / 2;
+
+  const circuitTopMin = statsValueBottom + MIN_GAP_TEXT_TO_CIRCUIT;
+  const circuitTopMax = controlsTop - MIN_GAP_CIRCUIT_TO_CONTROLS - circuitH;
+  const desiredCircuitTop = (circuitTopMin + circuitTopMax) / 2;
+  const circuitTop = Math.min(Math.max(desiredCircuitTop, circuitTopMin), circuitTopMax);
 
   const circuitScale = Math.min(circuitW / CIRCUIT_VIEWBOX.width, circuitH / CIRCUIT_VIEWBOX.height);
   const circuitOffsetX = (circuitW - CIRCUIT_VIEWBOX.width * circuitScale) / 2;
@@ -213,7 +248,7 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
       </Text>
 
       <Text style={[st.lbl, { left: distStartX, top: statsLabelTop, fontSize: 13, lineHeight: 13 }]}>TIME</Text>
-      <Text style={[st.val, { left: distStartX, top: statsValueTop, fontSize: 30, lineHeight: 36 }]}>{fmtTime(elapsedMs)}</Text>
+      <Text style={[st.val, { left: distStartX, top: statsValueTop, fontSize: 30, lineHeight: STAT_VALUE_LINE_HEIGHT }]}>{fmtTime(elapsedMs)}</Text>
 
       <Text style={[st.lbl, { left: paceLabelLeft, top: statsLabelTop, fontSize: 13, lineHeight: 13 }]}>PACE</Text>
       <Text
@@ -228,7 +263,7 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
             width: paceTextWidth,
             textAlign: 'right',
             fontSize: 30,
-            lineHeight: 36,
+            lineHeight: STAT_VALUE_LINE_HEIGHT,
           },
         ]}
       >
@@ -242,7 +277,7 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
           const w = e.nativeEvent.layout.width;
           if (w > 0 && Math.abs(w - paceMaxWidth) > 0.5) setPaceMaxWidth(w);
         }}
-        style={[st.hiddenMeasure, { fontFamily: 'Formula1-Bold', fontSize: 30, lineHeight: 36 }]}
+        style={[st.hiddenMeasure, { fontFamily: 'Formula1-Bold', fontSize: 30, lineHeight: STAT_VALUE_LINE_HEIGHT }]}
       >
         {PACE_FIT_SAMPLE}
       </Text>
@@ -254,7 +289,7 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
           const w = e.nativeEvent.layout.width;
           if (w > 0 && Math.abs(w - paceCurrentWidth) > 0.5) setPaceCurrentWidth(w);
         }}
-        style={[st.hiddenMeasure, { fontFamily: 'Formula1-Bold', fontSize: 30, lineHeight: 36 }]}
+        style={[st.hiddenMeasure, { fontFamily: 'Formula1-Bold', fontSize: 30, lineHeight: STAT_VALUE_LINE_HEIGHT }]}
       >
         {paceValue}
       </Text>
@@ -293,9 +328,11 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
       <View
         style={{
           position: 'absolute',
-          top: t(753),
+          bottom: 0,
           left: 0,
           right: 0,
+          paddingTop: CONTROLS_TOP_SPACING,
+          paddingBottom: controlsBottomPadding,
           flexDirection: 'row',
           justifyContent: 'center',
           gap: s(24),
@@ -309,15 +346,15 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
                 onStop();
               }}
             >
-              <StopButton color={BTN_ICON[sector]} bgColor={BTN_BG[sector]} size={76} />
+              <StopButton color={BTN_ICON[sector]} bgColor={BTN_BG[sector]} size={CONTROL_BUTTON_SIZE} />
             </Pressable>
             <Pressable onPress={resumeRun}>
-              <PlayButton color={BTN_ICON[sector]} bgColor={BTN_BG[sector]} size={76} />
+              <PlayButton color={BTN_ICON[sector]} bgColor={BTN_BG[sector]} size={CONTROL_BUTTON_SIZE} />
             </Pressable>
           </>
         ) : (
           <Pressable onPress={pauseRun}>
-            <PauseButton color={BTN_ICON[sector]} bgColor={BTN_BG[sector]} size={76} />
+            <PauseButton color={BTN_ICON[sector]} bgColor={BTN_BG[sector]} size={CONTROL_BUTTON_SIZE} />
           </Pressable>
         )}
       </View>

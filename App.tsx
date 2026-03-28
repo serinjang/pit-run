@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { StatusBar, StyleSheet, View } from 'react-native';
 import { useFonts } from 'expo-font';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import CountdownScreen from './src/screens/CountdownScreen';
 import ReadyScreen from './src/screens/ReadyScreen';
 import RunningScreen from './src/screens/RunningScreen';
@@ -57,28 +58,30 @@ export default function App() {
   if (!fontsLoaded) return <View style={styles.root} />;
 
   return (
-    <View style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor="#17171C" />
-      {screen === 'ready' && (
-        <ReadyScreen
-          circuits={CIRCUITS}
-          selectedCircuitId={selectedCircuit.id}
-          onSelectCircuit={setSelectedCircuitId}
-          onStart={startRun}
-          profile={profile}
-        />
-      )}
-      {screen === 'countdown' && <CountdownScreen onFinish={startMeasuring} />}
-      {screen === 'running' && (
-        <RunningScreen
-          circuit={selectedCircuit}
-          profile={profile}
-          records={records}
-          onStop={stopRun}
-          onPaceSample={handlePaceSample}
-        />
-      )}
-    </View>
+    <SafeAreaProvider>
+      <View style={styles.root}>
+        <StatusBar barStyle="light-content" backgroundColor="#17171C" />
+        {screen === 'ready' && (
+          <ReadyScreen
+            circuits={CIRCUITS}
+            selectedCircuitId={selectedCircuit.id}
+            onSelectCircuit={setSelectedCircuitId}
+            onStart={startRun}
+            profile={profile}
+          />
+        )}
+        {screen === 'countdown' && <CountdownScreen onFinish={startMeasuring} />}
+        {screen === 'running' && (
+          <RunningScreen
+            circuit={selectedCircuit}
+            profile={profile}
+            records={records}
+            onStop={stopRun}
+            onPaceSample={handlePaceSample}
+          />
+        )}
+      </View>
+    </SafeAreaProvider>
   );
 }
 
