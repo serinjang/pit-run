@@ -3,11 +3,12 @@ import { StatusBar, StyleSheet, View } from 'react-native';
 import { useFonts } from 'expo-font';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import CountdownScreen from './src/screens/CountdownScreen';
+import ProfileSetupScreen from './src/screens/ProfileSetupScreen';
 import ReadyScreen from './src/screens/ReadyScreen';
 import RunningScreen from './src/screens/RunningScreen';
 import { CIRCUITS, DEFAULT_CIRCUIT_ID } from './src/config/circuits';
 
-type Screen = 'ready' | 'countdown' | 'running';
+type Screen = 'profile' | 'ready' | 'countdown' | 'running';
 
 type PaceRecords = {
   bestEverSecPerKm: number;
@@ -16,6 +17,7 @@ type PaceRecords = {
 
 type UserProfile = {
   displayName: string;
+  raceNumber: string;
   nameTagAccentColor: string;
 };
 
@@ -27,14 +29,15 @@ export default function App() {
     'Formula1-Italic': require('./assets/fonts/Formula1_Display-Italic_Italic.ttf'),
   });
 
-  const [screen, setScreen] = useState<Screen>('ready');
+  const [screen, setScreen] = useState<Screen>('profile');
   const [selectedCircuitId, setSelectedCircuitId] = useState(DEFAULT_CIRCUIT_ID);
   const [records, setRecords] = useState<PaceRecords>({
     bestEverSecPerKm: Number.POSITIVE_INFINITY,
     todayBestSecPerKm: Number.POSITIVE_INFINITY,
   });
-  const [profile] = useState<UserProfile>({
+  const [profile, setProfile] = useState<UserProfile>({
     displayName: 'LEC',
+    raceNumber: '16',
     nameTagAccentColor: '#E03A3E',
   });
 
@@ -61,6 +64,15 @@ export default function App() {
     <SafeAreaProvider>
       <View style={styles.root}>
         <StatusBar barStyle="light-content" backgroundColor="#17171C" />
+        {screen === 'profile' && (
+          <ProfileSetupScreen
+            initialProfile={profile}
+            onComplete={(nextProfile) => {
+              setProfile(nextProfile);
+              setScreen('ready');
+            }}
+          />
+        )}
         {screen === 'ready' && (
           <ReadyScreen
             circuits={CIRCUITS}

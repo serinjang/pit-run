@@ -63,7 +63,7 @@ const SHOW_DEBUG_SECTOR_SWITCH = __DEV__;
 type RunningScreenProps = {
   onStop: () => void;
   circuit?: { displayName: string; distanceKm: number };
-  profile?: { displayName: string; nameTagAccentColor: string };
+  profile?: { displayName: string; raceNumber?: string; nameTagAccentColor: string };
   records?: { bestEverSecPerKm: number; todayBestSecPerKm: number };
   onPaceSample?: (paceSecPerKm: number) => void;
 };

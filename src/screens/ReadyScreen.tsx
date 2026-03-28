@@ -5,6 +5,7 @@ import SvgButton from '../components/SvgButton';
 
 type UserProfile = {
   displayName: string;
+  raceNumber: string;
   nameTagAccentColor: string;
 };
 
@@ -37,6 +38,7 @@ export default function ReadyScreen({
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>유저</Text>
         <Text style={styles.userText}>드라이버 코드: {profile.displayName}</Text>
+        <Text style={styles.userText}>선수 번호: #{profile.raceNumber}</Text>
         <View style={styles.colorRow}>
           <Text style={styles.userText}>네임태그 컬러:</Text>
           <View style={[styles.colorDot, { backgroundColor: profile.nameTagAccentColor }]} />
