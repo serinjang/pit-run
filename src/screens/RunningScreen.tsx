@@ -91,6 +91,7 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
     pauseRun,
     resumeRun,
     stopRun,
+    triggerBoxBox,
     startRun,
     closeBoxBox,
     setTire,
@@ -333,7 +334,10 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
       </View>
 
       {SHOW_DEBUG_SECTOR_SWITCH && (
-        <View style={st.debugSectorWrap}>
+        <View style={st.debugToolsWrap}>
+          <Pressable onPress={triggerBoxBox} style={st.debugBoxBoxBtn}>
+            <Text style={st.debugBoxBoxTxt}>BOX</Text>
+          </Pressable>
           <Pressable onPress={() => setSector('yellow')} style={[st.debugSectorBtn, { backgroundColor: BTN_BG.yellow }]}>
             <Text style={st.debugSectorTxt}>Y</Text>
           </Pressable>
@@ -437,13 +441,31 @@ const st = StyleSheet.create({
     top: -9999,
     includeFontPadding: false,
   },
-  debugSectorWrap: {
+  debugToolsWrap: {
     position: 'absolute',
     top: 44,
     right: 16,
     flexDirection: 'row',
     gap: 8,
     zIndex: 20,
+    alignItems: 'center',
+  },
+  debugBoxBoxBtn: {
+    height: 28,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FCB827',
+    backgroundColor: 'rgba(252,184,39,0.16)',
+  },
+  debugBoxBoxTxt: {
+    color: '#FCB827',
+    fontFamily: 'Formula1-Bold',
+    fontSize: 10,
+    lineHeight: 11,
+    includeFontPadding: false,
   },
   debugSectorBtn: {
     width: 28,
