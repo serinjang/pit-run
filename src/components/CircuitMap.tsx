@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { svgPathProperties } from 'svg-path-properties';
@@ -13,6 +13,25 @@ export const CIRCUIT_VIEWBOX = { width: 286, height: 185 } as const;
 
 const circuitProps = new svgPathProperties(CIRCUIT_PATH);
 const TOTAL_LENGTH = circuitProps.getTotalLength();
+
+const START_COLOR = { r: 0xFC, g: 0xB8, b: 0x27 };
+const END_COLOR = { r: 0xFC, g: 0x8E, b: 0x28 };
+
+function lerp(a: number, b: number, t: number) {
+  return Math.round(a + (b - a) * t);
+}
+
+function toHex(v: number) {
+  return v.toString(16).padStart(2, '0').toUpperCase();
+}
+
+function colorAt(t: number) {
+  const clamped = Math.max(0, Math.min(1, t));
+  const r = lerp(START_COLOR.r, END_COLOR.r, clamped);
+  const g = lerp(START_COLOR.g, END_COLOR.g, clamped);
+  const b = lerp(START_COLOR.b, END_COLOR.b, clamped);
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
 
 export function getCircuitPointAtProgress(progress: number) {
   const p = Math.max(0, Math.min(progress, 1));
@@ -35,34 +54,40 @@ export function getCircuitTangentAtProgress(progress: number) {
 export default function CircuitMap({ progress }: Props) {
   const p = Math.max(0, Math.min(progress, 1));
   const drawn = Math.max(2, p * TOTAL_LENGTH);
-  const tailLen = Math.min(drawn, Math.max(18, TOTAL_LENGTH * 0.12));
-  const tailOffset = Math.max(0, drawn - tailLen);
+
+  const gradientSegments = useMemo(() => {
+    const count = Math.max(36, Math.min(220, Math.ceil(drawn / 6)));
+    const segLen = drawn / count;
+    const out: Array<{ color: string; gap: number; len: number }> = [];
+
+    for (let i = 0; i < count; i += 1) {
+      out.push({
+        color: colorAt(count <= 1 ? 0 : i / (count - 1)),
+        gap: i * segLen,
+        len: segLen,
+      });
+    }
+
+    return out;
+  }, [drawn]);
 
   return (
     <View style={s.wrap}>
       <Svg width="100%" height="100%" viewBox={`0 0 ${CIRCUIT_VIEWBOX.width} ${CIRCUIT_VIEWBOX.height}`} preserveAspectRatio="xMidYMid meet">
         <Path d={CIRCUIT_PATH} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={5} strokeMiterlimit={10} />
-        <Path
-          d={CIRCUIT_PATH}
-          fill="none"
-          stroke="#FCB827"
-          strokeWidth={5}
-          strokeMiterlimit={10}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeDasharray={`${drawn} ${TOTAL_LENGTH}`}
-        />
-        <Path
-          d={CIRCUIT_PATH}
-          fill="none"
-          stroke="#FC8E28"
-          strokeWidth={5}
-          strokeMiterlimit={10}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeDasharray={`${tailLen} ${TOTAL_LENGTH}`}
-          strokeDashoffset={-tailOffset}
-        />
+        {[...gradientSegments].reverse().map((seg, idx) => (
+          <Path
+            key={`seg-${idx}`}
+            d={CIRCUIT_PATH}
+            fill="none"
+            stroke={seg.color}
+            strokeWidth={5}
+            strokeMiterlimit={10}
+            strokeLinecap="butt"
+            strokeLinejoin="round"
+            strokeDasharray={`0 ${seg.gap} ${seg.len + 0.2} ${TOTAL_LENGTH}`}
+          />
+        ))}
       </Svg>
     </View>
   );
