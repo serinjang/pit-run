@@ -257,7 +257,7 @@ const s = StyleSheet.create({
     position: 'absolute',
     left: 89,
     top: DETAIL_TEXT_TOP,
-    color: 'rgba(255,255,255,0.7)',
+    color: 'rgba(255,255,255,0.5)',
     fontFamily: 'Formula1-Italic',
     fontSize: 20,
     lineHeight: 24,
