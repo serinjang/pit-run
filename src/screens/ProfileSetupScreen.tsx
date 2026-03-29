@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
-import SvgButton from '../components/SvgButton';
 import { getDriverCode } from '../utils/driverCode';
+import GradientCtaButton from '../components/GradientCtaButton';
 
 type UserProfile = {
   displayName: string;
@@ -47,6 +47,8 @@ export default function ProfileSetupScreen({ initialProfile, onComplete }: Profi
   const numberErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nameShakeX = useRef(new Animated.Value(0)).current;
   const numberShakeX = useRef(new Animated.Value(0)).current;
+  const nameFocusSpread = useRef(new Animated.Value(0)).current;
+  const numberFocusSpread = useRef(new Animated.Value(0)).current;
 
   const trimmedName = useMemo(() => displayName.trim(), [displayName]);
   const nameLetterCount = useMemo(() => trimmedName.replace(/\s+/g, '').length, [trimmedName]);
@@ -117,8 +119,22 @@ export default function ProfileSetupScreen({ initialProfile, onComplete }: Profi
     if (overLimit) showNameFlashError('Use up to 20 characters.');
   };
 
+  const animateUnderlineSpread = (target: Animated.Value, focused: boolean) => {
+    Animated.timing(target, {
+      toValue: focused ? 1 : 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const onFocusName = () => {
+    setFocusedField('name');
+    animateUnderlineSpread(nameFocusSpread, true);
+  };
+
   const onBlurName = () => {
     setFocusedField(null);
+    animateUnderlineSpread(nameFocusSpread, false);
     setNameBlurredOnce(true);
     setDisplayName((prev) => prev.replace(/\s+$/, ''));
     if (trimmedName.length > 0 && nameLetterCount < 3) {
@@ -144,8 +160,14 @@ export default function ProfileSetupScreen({ initialProfile, onComplete }: Profi
     if (overLimit) showNumberFlashError('Use up to 5 digits.');
   };
 
+  const onFocusNumber = () => {
+    setFocusedField('number');
+    animateUnderlineSpread(numberFocusSpread, true);
+  };
+
   const onBlurNumber = () => {
     setFocusedField(null);
+    animateUnderlineSpread(numberFocusSpread, false);
     setRaceNumber((prev) => prev.replace(/\s+$/, ''));
   };
 
@@ -169,7 +191,7 @@ export default function ProfileSetupScreen({ initialProfile, onComplete }: Profi
               ref={nameRef}
               value={displayName}
               onChangeText={onChangeName}
-              onFocus={() => setFocusedField('name')}
+              onFocus={onFocusName}
               onBlur={onBlurName}
               onSubmitEditing={() => {
                 setNameBlurredOnce(true);
@@ -184,14 +206,17 @@ export default function ProfileSetupScreen({ initialProfile, onComplete }: Profi
               placeholder=""
               style={[styles.inputText, styles.inputNoOutline]}
             />
-            <Animated.View
-              style={[
-                styles.inputUnderline,
-                { transform: [{ translateX: nameShakeX }] },
-                nameError ? styles.inputUnderlineError : null,
-                !nameError && focusedField === 'name' ? styles.inputUnderlineFocused : null,
-              ]}
-            />
+            <Animated.View style={[styles.inputUnderlineTrack, { transform: [{ translateX: nameShakeX }] }, nameError ? styles.inputUnderlineError : null]}>
+              <Animated.View
+                style={[
+                  styles.inputUnderlineSpread,
+                  {
+                    transform: [{ scaleX: nameFocusSpread }],
+                    opacity: nameError ? 0 : nameFocusSpread,
+                  },
+                ]}
+              />
+            </Animated.View>
           </View>
           {!!nameError && <Text style={styles.errorText}>{nameError}</Text>}
         </View>
@@ -203,7 +228,7 @@ export default function ProfileSetupScreen({ initialProfile, onComplete }: Profi
               ref={numberRef}
               value={raceNumber}
               onChangeText={onChangeNumber}
-              onFocus={() => setFocusedField('number')}
+              onFocus={onFocusNumber}
               onBlur={onBlurNumber}
               onSubmitEditing={onBlurNumber}
               keyboardType="number-pad"
@@ -212,14 +237,17 @@ export default function ProfileSetupScreen({ initialProfile, onComplete }: Profi
               placeholder=""
               style={[styles.inputText, styles.inputNoOutline]}
             />
-            <Animated.View
-              style={[
-                styles.inputUnderline,
-                { transform: [{ translateX: numberShakeX }] },
-                numberError ? styles.inputUnderlineError : null,
-                !numberError && focusedField === 'number' ? styles.inputUnderlineFocused : null,
-              ]}
-            />
+            <Animated.View style={[styles.inputUnderlineTrack, { transform: [{ translateX: numberShakeX }] }, numberError ? styles.inputUnderlineError : null]}>
+              <Animated.View
+                style={[
+                  styles.inputUnderlineSpread,
+                  {
+                    transform: [{ scaleX: numberFocusSpread }],
+                    opacity: numberError ? 0 : numberFocusSpread,
+                  },
+                ]}
+              />
+            </Animated.View>
           </View>
           {!!numberError && <Text style={styles.errorText}>{numberError}</Text>}
         </View>
@@ -257,8 +285,10 @@ export default function ProfileSetupScreen({ initialProfile, onComplete }: Profi
         </View>
       </View>
 
-      <Pressable
-        disabled={!canSubmit}
+      <GradientCtaButton
+        width={contentWidth}
+        label="MAKE DEBUT"
+        enabled={canSubmit}
         onPress={() =>
           onComplete({
             displayName: toDriverNameCase(trimmedName),
@@ -266,21 +296,7 @@ export default function ProfileSetupScreen({ initialProfile, onComplete }: Profi
             nameTagAccentColor: teamColor ?? PREVIEW_DEFAULT_COLOR,
           })
         }
-        style={styles.buttonPress}
-      >
-        <SvgButton
-          width={contentWidth}
-          height={50}
-          radius={12}
-          fill={canSubmit ? '#E03A3E' : 'rgba(224,58,62,0.3)'}
-          stroke={canSubmit ? '#E03A3E' : 'transparent'}
-          strokeWidth={canSubmit ? 1 : 0}
-          textColor={canSubmit ? '#FFFFFF' : 'rgba(255,255,255,0.3)'}
-          fontFamily="Formula1-Bold"
-          fontSize={22}
-          label="MAKE DEBUT"
-        />
-      </Pressable>
+      />
     </View>
   );
 }
@@ -337,13 +353,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     ...( { outlineStyle: 'none', outlineWidth: 0 } as any ),
   },
-  inputUnderline: {
+  inputUnderlineTrack: {
     width: '100%',
     height: 2,
+    overflow: 'hidden',
     backgroundColor: 'rgba(255,255,255,0.3)',
   },
-  inputUnderlineFocused: {
-    backgroundColor: 'rgba(255,255,255,0.95)',
+  inputUnderlineSpread: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#FFFFFF',
+    transform: [{ scaleX: 0 }],
   },
   inputUnderlineError: {
     backgroundColor: '#E03A3E',
@@ -421,9 +440,5 @@ const styles = StyleSheet.create({
     fontSize: 20,
     lineHeight: 24,
     includeFontPadding: false,
-  },
-  buttonPress: {
-    width: '100%',
-    height: 50,
   },
 });
