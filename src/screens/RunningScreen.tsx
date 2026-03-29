@@ -364,15 +364,15 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
                 onStop();
               }}
             >
-              <StopButton color={BTN_ICON[sector]} bgColor={BTN_BG[sector]} size={CONTROL_BUTTON_SIZE} />
+              <StopButton color={BTN_ICON[sector]} bgColor={BTN_BG[sector]} size={CONTROL_BUTTON_SIZE} sector={sector} />
             </Pressable>
             <Pressable onPress={resumeRun}>
-              <PlayButton color={BTN_ICON[sector]} bgColor={BTN_BG[sector]} size={CONTROL_BUTTON_SIZE} />
+              <PlayButton color={BTN_ICON[sector]} bgColor={BTN_BG[sector]} size={CONTROL_BUTTON_SIZE} sector={sector} />
             </Pressable>
           </>
         ) : (
           <Pressable onPress={pauseRun}>
-            <PauseButton color={BTN_ICON[sector]} bgColor={BTN_BG[sector]} size={CONTROL_BUTTON_SIZE} />
+            <PauseButton color={BTN_ICON[sector]} bgColor={BTN_BG[sector]} size={CONTROL_BUTTON_SIZE} sector={sector} />
           </Pressable>
         )}
       </View>

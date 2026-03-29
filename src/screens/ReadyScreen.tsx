@@ -9,12 +9,21 @@ type UserProfile = {
   nameTagAccentColor: string;
 };
 
+type QualifyingResult = {
+  warmupMinutes: number;
+  oneKmMs: number;
+  paceSecPerKm: number;
+  grade: 'A' | 'B' | 'C' | 'D';
+  nextIntervalHint: string;
+};
+
 type ReadyScreenProps = {
   circuits: CircuitDefinition[];
   selectedCircuitId: string;
   onSelectCircuit: (circuitId: string) => void;
   onStart: () => void;
   profile: UserProfile;
+  qualifyingResult: QualifyingResult | null;
 };
 
 const SCREEN_W = Dimensions.get('window').width;
@@ -29,6 +38,7 @@ export default function ReadyScreen({
   onSelectCircuit,
   onStart,
   profile,
+  qualifyingResult,
 }: ReadyScreenProps) {
   return (
     <View style={styles.container}>
@@ -44,6 +54,19 @@ export default function ReadyScreen({
           <View style={[styles.colorDot, { backgroundColor: profile.nameTagAccentColor }]} />
           <Text style={styles.userText}>{profile.nameTagAccentColor}</Text>
         </View>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>QUALIFYING</Text>
+        {qualifyingResult ? (
+          <>
+            <Text style={styles.userText}>GRADE: {qualifyingResult.grade}</Text>
+            <Text style={styles.userText}>1KM: {fmtStopwatch(qualifyingResult.oneKmMs)}</Text>
+            <Text style={styles.userText}>NEXT: {qualifyingResult.nextIntervalHint}</Text>
+          </>
+        ) : (
+          <Text style={styles.userText}>첫 러닝 전 QUALIFYING을 완료해 주세요.</Text>
+        )}
       </View>
 
       <View style={styles.card}>
@@ -157,3 +180,11 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
 });
+
+function fmtStopwatch(ms: number): string {
+  const total = Math.floor(ms / 10);
+  const cs = total % 100;
+  const sec = Math.floor(total / 100) % 60;
+  const min = Math.floor(total / 6000);
+  return `${min}:${sec < 10 ? '0' : ''}${sec}.${cs < 10 ? '0' : ''}${cs}`;
+}

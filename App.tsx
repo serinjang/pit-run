@@ -4,11 +4,12 @@ import { useFonts } from 'expo-font';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import CountdownScreen from './src/screens/CountdownScreen';
 import ProfileSetupScreen from './src/screens/ProfileSetupScreen';
+import QualifyingScreen, { type QualifyingResult } from './src/screens/QualifyingScreen';
 import ReadyScreen from './src/screens/ReadyScreen';
 import RunningScreen from './src/screens/RunningScreen';
 import { CIRCUITS, DEFAULT_CIRCUIT_ID } from './src/config/circuits';
 
-type Screen = 'profile' | 'ready' | 'countdown' | 'running';
+type Screen = 'profile' | 'qualifying' | 'ready' | 'countdown' | 'running';
 
 type PaceRecords = {
   bestEverSecPerKm: number;
@@ -40,6 +41,7 @@ export default function App() {
     raceNumber: '16',
     nameTagAccentColor: '#E03A3E',
   });
+  const [qualifyingResult, setQualifyingResult] = useState<QualifyingResult | null>(null);
 
   const selectedCircuit =
     useMemo(
@@ -69,6 +71,15 @@ export default function App() {
             initialProfile={profile}
             onComplete={(nextProfile) => {
               setProfile(nextProfile);
+              setScreen('qualifying');
+            }}
+          />
+        )}
+        {screen === 'qualifying' && (
+          <QualifyingScreen
+            profile={profile}
+            onComplete={(result) => {
+              setQualifyingResult(result);
               setScreen('ready');
             }}
           />
@@ -80,6 +91,7 @@ export default function App() {
             onSelectCircuit={setSelectedCircuitId}
             onStart={startRun}
             profile={profile}
+            qualifyingResult={qualifyingResult}
           />
         )}
         {screen === 'countdown' && <CountdownScreen onFinish={startMeasuring} />}
