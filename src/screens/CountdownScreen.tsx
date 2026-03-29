@@ -1,61 +1,191 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Dimensions, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Asset } from 'expo-asset';
 import { useDistanceDisplayFont } from '../hooks/useDistanceDisplayFont';
 
-const { width: screenWidth } = Dimensions.get('window');
-const scale = screenWidth / 402;
+const COUNTDOWN_PAGE_MS = 1000;
+const DISSOLVE_MS = 120;
+const COUNTDOWN_NUMBER_HEIGHT_MULTIPLIER = 0.82;
+const DIGIT_OCCUPANCY_Y = 1 / 3;
+const DIGIT_TOP_IN_PNG_RATIO = 0.305;
+const DESIGN_SCREEN_HEIGHT = 874;
+const RUNNING_DISTANCE_TOP = 174;
 
-const DOT_SIZE = 45;
-const DOT_GAP = 17;
-const DOT_ROW_GAP = 21;
-const DOT_INACTIVE = '#333D48';
-const DOT_ACTIVE = ['#FF6525', '#F85C2A', '#F04A2A', '#E84535', '#E03A3E'];
+type CountdownValue = 5 | 4 | 3 | 2 | 1 | 0;
 
-function getActiveDotMap(count: number): Set<string> {
-  const active = new Set<string>();
-  const litCount = Math.max(0, 6 - count);
-  for (let i = 0; i < litCount; i += 1) {
-    active.add(`1-${4 - i}`);
-  }
-  return active;
-}
+const NUMBER_SOURCE: Record<CountdownValue, any> = {
+  5: require('../../assets/countdown/number-5.png'),
+  4: require('../../assets/countdown/number-4.png'),
+  3: require('../../assets/countdown/number-3.png'),
+  2: require('../../assets/countdown/number-2.png'),
+  1: require('../../assets/countdown/number-1.png'),
+  0: require('../../assets/countdown/number-0.png'),
+};
+
+const SIGNAL_SOURCE: Record<CountdownValue, any> = {
+  5: require('../../assets/countdown/signal-5.png'),
+  4: require('../../assets/countdown/signal-4.png'),
+  3: require('../../assets/countdown/signal-3.png'),
+  2: require('../../assets/countdown/signal-2.png'),
+  1: require('../../assets/countdown/signal-1.png'),
+  0: require('../../assets/countdown/signal-0.png'),
+};
+
+const NUMBER_ASPECT_RATIO: Record<CountdownValue, number> = {
+  5: 1024 / 764,
+  4: 1024 / 764,
+  3: 1024 / 764,
+  2: 1024 / 764,
+  1: 1024 / 764,
+  0: 1792 / 1200,
+};
+
+const SIGNAL_ASPECT_RATIO = 1608 / 1056;
+const COUNTDOWN_IMAGE_MODULES = [
+  NUMBER_SOURCE[5],
+  NUMBER_SOURCE[4],
+  NUMBER_SOURCE[3],
+  NUMBER_SOURCE[2],
+  NUMBER_SOURCE[1],
+  NUMBER_SOURCE[0],
+  SIGNAL_SOURCE[5],
+  SIGNAL_SOURCE[4],
+  SIGNAL_SOURCE[3],
+  SIGNAL_SOURCE[2],
+  SIGNAL_SOURCE[1],
+  SIGNAL_SOURCE[0],
+];
 
 type CountdownScreenProps = {
   onFinish: () => void;
 };
 
 export default function CountdownScreen({ onFinish }: CountdownScreenProps) {
-  const [count, setCount] = useState(5);
-  const [showGo, setShowGo] = useState(false);
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const [count, setCount] = useState<CountdownValue>(5);
+  const [previousCount, setPreviousCount] = useState<CountdownValue | null>(null);
+  const [assetsReady, setAssetsReady] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { fontSize, lineHeight, sampleText, onSampleLayout } = useDistanceDisplayFont(screenWidth);
+  const dissolveOpacity = useRef(new Animated.Value(1)).current;
+  const { lineHeight, sampleText, onSampleLayout } = useDistanceDisplayFont(screenWidth);
 
   useEffect(() => {
-    const tick = (n: number) => {
-      if (n <= 1) {
-        setCount(1);
-        setShowGo(true);
-        timeoutRef.current = setTimeout(onFinish, 800);
-        return;
-      }
+    let mounted = true;
 
-      setCount(n - 1);
-      timeoutRef.current = setTimeout(() => tick(n - 1), 1000);
+    Asset.loadAsync(COUNTDOWN_IMAGE_MODULES)
+      .then(() => {
+        if (mounted) setAssetsReady(true);
+      })
+      .catch(() => {
+        if (mounted) setAssetsReady(true);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!assetsReady) return;
+
+    setCount(5);
+    setPreviousCount(null);
+    dissolveOpacity.setValue(1);
+
+    const tick = (n: CountdownValue) => {
+      timeoutRef.current = setTimeout(() => {
+        if (n <= 0) {
+          onFinish();
+          return;
+        }
+
+        const next = (n - 1) as CountdownValue;
+        setPreviousCount(n);
+        setCount(next);
+        dissolveOpacity.setValue(0);
+        Animated.timing(dissolveOpacity, {
+          toValue: 1,
+          duration: DISSOLVE_MS,
+          useNativeDriver: true,
+        }).start(({ finished }) => {
+          if (finished) setPreviousCount(null);
+        });
+        tick(next);
+      }, COUNTDOWN_PAGE_MS);
     };
 
-    timeoutRef.current = setTimeout(() => tick(5), 1000);
+    tick(5);
+
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
+      dissolveOpacity.stopAnimation();
     };
-  }, [onFinish]);
+  }, [assetsReady, dissolveOpacity, onFinish]);
 
-  const activeDots = getActiveDotMap(count);
+  const renderNumberLayer = useMemo(
+    () => (value: CountdownValue, opacity: number | Animated.AnimatedInterpolation<number>) => {
+      // The visible digit occupies roughly 1/5 width and 1/3 height inside PNG.
+      // So we scale PNG size by the inverse occupancy to match digit size with running text.
+      const targetDigitHeight = lineHeight * COUNTDOWN_NUMBER_HEIGHT_MULTIPLIER;
+      const numberHeight = targetDigitHeight / DIGIT_OCCUPANCY_Y;
+      const numberWidth = numberHeight * NUMBER_ASPECT_RATIO[value];
+      const targetDigitTop = (screenHeight * RUNNING_DISTANCE_TOP) / DESIGN_SCREEN_HEIGHT;
+      const numberTop = targetDigitTop - numberHeight * DIGIT_TOP_IN_PNG_RATIO;
+
+      return (
+        <Animated.View style={[styles.layer, { opacity }]} pointerEvents="none">
+          <Image
+            source={NUMBER_SOURCE[value]}
+            style={[
+              styles.numberImage,
+              {
+                width: numberWidth,
+                height: numberHeight,
+                left: (screenWidth - numberWidth) / 2,
+                top: numberTop,
+              },
+            ]}
+            resizeMode="contain"
+          />
+        </Animated.View>
+      );
+    },
+    [lineHeight, screenHeight, screenWidth]
+  );
+
+  const currentSignalLayer = useMemo(() => {
+    const targetDigitHeight = lineHeight * COUNTDOWN_NUMBER_HEIGHT_MULTIPLIER;
+    const numberHeight = targetDigitHeight / DIGIT_OCCUPANCY_Y;
+    const targetDigitTop = (screenHeight * RUNNING_DISTANCE_TOP) / DESIGN_SCREEN_HEIGHT;
+    const numberTop = targetDigitTop - numberHeight * DIGIT_TOP_IN_PNG_RATIO;
+    const signalWidth = screenWidth;
+    const signalHeight = signalWidth / SIGNAL_ASPECT_RATIO;
+
+    return (
+      <Image
+        source={SIGNAL_SOURCE[count]}
+        style={[
+          styles.signalImage,
+          {
+            width: signalWidth,
+            height: signalHeight,
+            top: numberTop + numberHeight,
+          },
+        ]}
+        resizeMode="contain"
+      />
+    );
+  }, [count, lineHeight, screenHeight, screenWidth]);
+
+  const previousOpacity = dissolveOpacity.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0],
+  });
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.number, { fontSize, lineHeight }]}>{showGo ? 'Go!' : count}</Text>
       <Text
         numberOfLines={1}
         allowFontScaling={false}
@@ -64,25 +194,12 @@ export default function CountdownScreen({ onFinish }: CountdownScreenProps) {
       >
         {sampleText}
       </Text>
-      {!showGo && (
-        <View style={styles.dotWrap}>
-          {[0, 1].map((row) => (
-            <View key={row} style={styles.dotRow}>
-              {[0, 1, 2, 3, 4].map((col) => {
-                const active = activeDots.has(`${row}-${col}`);
-                return (
-                  <View
-                    key={col}
-                    style={[
-                      styles.dot,
-                      { backgroundColor: active ? DOT_ACTIVE[4 - col] : DOT_INACTIVE },
-                    ]}
-                  />
-                );
-              })}
-            </View>
-          ))}
-        </View>
+      {assetsReady && (
+        <>
+          {currentSignalLayer}
+          {previousCount !== null && renderNumberLayer(previousCount, previousOpacity)}
+          {renderNumberLayer(count, dissolveOpacity)}
+        </>
       )}
     </View>
   );
@@ -92,27 +209,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#17171C',
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
   },
-  number: {
-    color: '#E03A3E',
-    letterSpacing: 5,
-    fontFamily: 'Formula1-Black',
-    marginBottom: 80 * scale,
-    includeFontPadding: false,
+  layer: {
+    ...StyleSheet.absoluteFillObject,
   },
-  dotWrap: {
-    gap: DOT_ROW_GAP * scale,
+  numberImage: {
+    position: 'absolute',
   },
-  dotRow: {
-    flexDirection: 'row',
-    gap: DOT_GAP * scale,
-  },
-  dot: {
-    width: DOT_SIZE * scale,
-    height: DOT_SIZE * scale,
-    borderRadius: 999,
+  signalImage: {
+    position: 'absolute',
+    left: 0,
   },
   hiddenMeasure: {
     position: 'absolute',

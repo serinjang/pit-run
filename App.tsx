@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { StatusBar, StyleSheet, View } from 'react-native';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Animated, StatusBar, StyleSheet, View } from 'react-native';
 import { useFonts } from 'expo-font';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import CountdownScreen from './src/screens/CountdownScreen';
@@ -42,6 +42,9 @@ export default function App() {
     nameTagAccentColor: '#E03A3E',
   });
   const [qualifyingResult, setQualifyingResult] = useState<QualifyingResult | null>(null);
+  const countdownToRunningProgress = useRef(new Animated.Value(0)).current;
+  const [isCountdownRunningTransition, setIsCountdownRunningTransition] = useState(false);
+  const runningTransitionLock = useRef(false);
 
   const selectedCircuit =
     useMemo(
@@ -50,8 +53,27 @@ export default function App() {
     );
 
   const startRun = useCallback(() => setScreen('countdown'), []);
-  const startMeasuring = useCallback(() => setScreen('running'), []);
+  const startMeasuring = useCallback(() => {
+    if (runningTransitionLock.current) return;
+    runningTransitionLock.current = true;
+    setIsCountdownRunningTransition(true);
+    setScreen('running');
+    countdownToRunningProgress.setValue(0);
+    Animated.timing(countdownToRunningProgress, {
+      toValue: 1,
+      duration: 260,
+      useNativeDriver: true,
+    }).start(() => {
+      setIsCountdownRunningTransition(false);
+      runningTransitionLock.current = false;
+    });
+  }, [countdownToRunningProgress]);
   const stopRun = useCallback(() => setScreen('ready'), []);
+
+  const countdownOpacity = countdownToRunningProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0],
+  });
 
   const handlePaceSample = useCallback((paceSecPerKm: number) => {
     setRecords((prev) => ({
@@ -94,15 +116,29 @@ export default function App() {
             qualifyingResult={qualifyingResult}
           />
         )}
-        {screen === 'countdown' && <CountdownScreen onFinish={startMeasuring} />}
+        {(screen === 'countdown' || isCountdownRunningTransition) && (
+          <Animated.View
+            style={isCountdownRunningTransition ? [styles.transitionLayer, { opacity: countdownOpacity }] : styles.root}
+          >
+            <CountdownScreen onFinish={startMeasuring} />
+          </Animated.View>
+        )}
         {screen === 'running' && (
-          <RunningScreen
-            circuit={selectedCircuit}
-            profile={profile}
-            records={records}
-            onStop={stopRun}
-            onPaceSample={handlePaceSample}
-          />
+          <Animated.View
+            style={
+              isCountdownRunningTransition
+                ? [styles.transitionLayer, { opacity: countdownToRunningProgress }]
+                : styles.root
+            }
+          >
+            <RunningScreen
+              circuit={selectedCircuit}
+              profile={profile}
+              records={records}
+              onStop={stopRun}
+              onPaceSample={handlePaceSample}
+            />
+          </Animated.View>
         )}
       </View>
     </SafeAreaProvider>
@@ -112,6 +148,10 @@ export default function App() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+    backgroundColor: '#17171C',
+  },
+  transitionLayer: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: '#17171C',
   },
 });

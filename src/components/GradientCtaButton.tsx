@@ -13,6 +13,7 @@ type GradientCtaButtonProps = {
 
 const GLOW_EXTRA_WIDTH = 160;
 const GLOW_HEIGHT = 158;
+const GLOW_BOTTOM_OFFSET = -65;
 
 export default function GradientCtaButton({
   width,
@@ -97,7 +98,7 @@ const styles = StyleSheet.create({
   },
   glow: {
     position: 'absolute',
-    bottom: -22,
+    bottom: GLOW_BOTTOM_OFFSET,
     left: -80,
     zIndex: 1,
   },
