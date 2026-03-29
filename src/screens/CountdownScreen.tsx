@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Asset } from 'expo-asset';
 import { useDistanceDisplayFont } from '../hooks/useDistanceDisplayFont';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 
 const COUNTDOWN_PAGE_MS = 1000;
 const DISSOLVE_MS = 120;
@@ -10,6 +12,7 @@ const DIGIT_OCCUPANCY_Y = 1 / 3;
 const DIGIT_TOP_IN_PNG_RATIO = 0.305;
 const DESIGN_SCREEN_HEIGHT = 874;
 const RUNNING_DISTANCE_TOP = 174;
+const SKIP_BOTTOM_OFFSET = 55;
 
 type CountdownValue = 5 | 4 | 3 | 2 | 1 | 0;
 
@@ -62,12 +65,24 @@ type CountdownScreenProps = {
 
 export default function CountdownScreen({ onFinish }: CountdownScreenProps) {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const [count, setCount] = useState<CountdownValue>(5);
   const [previousCount, setPreviousCount] = useState<CountdownValue | null>(null);
   const [assetsReady, setAssetsReady] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dissolveOpacity = useRef(new Animated.Value(1)).current;
+  const finishCalledRef = useRef(false);
   const { lineHeight, sampleText, onSampleLayout } = useDistanceDisplayFont(screenWidth);
+
+  const finishCountdown = () => {
+    if (finishCalledRef.current) return;
+    finishCalledRef.current = true;
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    onFinish();
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -91,11 +106,12 @@ export default function CountdownScreen({ onFinish }: CountdownScreenProps) {
     setCount(5);
     setPreviousCount(null);
     dissolveOpacity.setValue(1);
+    finishCalledRef.current = false;
 
     const tick = (n: CountdownValue) => {
       timeoutRef.current = setTimeout(() => {
         if (n <= 0) {
-          onFinish();
+          finishCountdown();
           return;
         }
 
@@ -201,6 +217,40 @@ export default function CountdownScreen({ onFinish }: CountdownScreenProps) {
           {renderNumberLayer(count, dissolveOpacity)}
         </>
       )}
+      {count > 0 && (
+        <Pressable
+          onPress={finishCountdown}
+          style={[
+            styles.skipButton,
+            {
+              bottom: Math.max((screenHeight * SKIP_BOTTOM_OFFSET) / DESIGN_SCREEN_HEIGHT, insets.bottom + 16),
+            },
+          ]}
+          hitSlop={12}
+        >
+          <Text style={styles.skipLabel}>Skip</Text>
+          <Svg width={20} height={13} viewBox="0 0 20 13" style={styles.skipChevronIcon}>
+            <Path
+              d="M1.5 1.5L7 6.5L1.5 11.5"
+              stroke="#FFFFFF"
+              strokeOpacity={0.5}
+              strokeWidth={3}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="none"
+            />
+            <Path
+              d="M11.5 1.5L17 6.5L11.5 11.5"
+              stroke="#FFFFFF"
+              strokeOpacity={0.5}
+              strokeWidth={3}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="none"
+            />
+          </Svg>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -231,5 +281,27 @@ const styles = StyleSheet.create({
     fontSize: 130.2486572265625,
     lineHeight: 156,
     letterSpacing: 6.5,
+  },
+  skipButton: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 50,
+    elevation: 50,
+  },
+  skipLabel: {
+    color: '#FFFFFF',
+    opacity: 0.5,
+    fontFamily: 'Formula1-Regular',
+    fontSize: 24,
+    lineHeight: 29,
+    letterSpacing: -0.48,
+    includeFontPadding: false,
+  },
+  skipChevronIcon: {
+    marginLeft: 4,
   },
 });
