@@ -1,15 +1,41 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import SvgButton from '../components/SvgButton';
-import GradientCtaButton from '../components/GradientCtaButton';
-import { getDriverCode } from '../utils/driverCode';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Animated,
+  Easing,
+  Image,
+  ImageSourcePropType,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
+import { useSafeTop } from '../hooks/useSafeTop';
+import Svg, {
+  Defs,
+  LinearGradient as SvgLinearGradient,
+  Rect,
+  Stop,
+} from 'react-native-svg';
 
-type UserProfile = {
-  displayName: string;
-  raceNumber: string;
-  nameTagAccentColor: string;
-};
+import GradientCtaButton from '../components/GradientCtaButton';
+import TextChevronButton from '../components/TextChevronButton';
+import BackButton from '../components/BackButton';
+import { useAppStore } from '../store/appStore';
+import type { QualifyingScreenProps } from '../navigation/types';
+
+// Figma design reference size
+const FW = 402;
+const FH = 874;
+
+const WARMUP_ICON = require('../../assets/icons/qualifying-warmup-5ce716.png');
+const RUN_ICON = require('../../assets/icons/qualifying-run-756777.png');
+const PLAN_ICON = require('../../assets/icons/qualifying-plan-76f8f5.png');
+
+const RECOMMENDED_WARMUP_MINUTES = 5;
+const ACCENT = '#E03A3E';
+
+type Phase = 'intro' | 'warmup' | 'qualifying' | 'retireConfirm';
 
 export type QualifyingResult = {
   warmupMinutes: number;
@@ -19,29 +45,19 @@ export type QualifyingResult = {
   nextIntervalHint: string;
 };
 
-type QualifyingScreenProps = {
-  profile: UserProfile;
-  onComplete: (result: QualifyingResult) => void;
-};
+export default function QualifyingScreen({ navigation }: QualifyingScreenProps) {
+  const { setQualifyingResult } = useAppStore();
+  const trialDistKm = 0;
+  const { width: windowW } = useWindowDimensions();
+  const safeTop = useSafeTop();
+  const sx = windowW / FW; // used only for fill items (timerFontSize)
 
-const RECOMMENDED_WARMUP_MINUTES = 10;
-const CTA_HEIGHT = 56;
-
-type Phase = 'intro' | 'warmup' | 'trial' | 'result';
-
-export default function QualifyingScreen({ profile, onComplete }: QualifyingScreenProps) {
-  const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
   const [phase, setPhase] = useState<Phase>('intro');
   const [warmupLeftSec, setWarmupLeftSec] = useState(RECOMMENDED_WARMUP_MINUTES * 60);
   const [trialStartedAt, setTrialStartedAt] = useState<number | null>(null);
   const [trialElapsedMs, setTrialElapsedMs] = useState(0);
-  const [result, setResult] = useState<QualifyingResult | null>(null);
-  const [isTreadmillMode, setIsTreadmillMode] = useState(false);
 
-  const buttonWidth = Math.max(220, width - 56);
-  const driverCode = useMemo(() => getDriverCode(profile.displayName), [profile.displayName]);
-
+  // Warmup countdown
   useEffect(() => {
     if (phase !== 'warmup') return;
     const timer = setInterval(() => {
@@ -51,7 +67,7 @@ export default function QualifyingScreen({ profile, onComplete }: QualifyingScre
           const now = Date.now();
           setTrialStartedAt(now);
           setTrialElapsedMs(0);
-          setPhase('trial');
+          setPhase('qualifying');
           return 0;
         }
         return prev - 1;
@@ -60,174 +76,495 @@ export default function QualifyingScreen({ profile, onComplete }: QualifyingScre
     return () => clearInterval(timer);
   }, [phase]);
 
+  // Trial stopwatch — continues during retireConfirm so timer keeps ticking behind the sheet
   useEffect(() => {
-    if (phase !== 'trial' || trialStartedAt == null) return;
+    if ((phase !== 'qualifying' && phase !== 'retireConfirm') || trialStartedAt == null) return;
     const timer = setInterval(() => {
       setTrialElapsedMs(Date.now() - trialStartedAt);
     }, 100);
     return () => clearInterval(timer);
   }, [phase, trialStartedAt]);
 
+  // Auto-complete when GPS distance reaches 1km
+  useEffect(() => {
+    if (phase === 'qualifying' && trialDistKm >= 1) {
+      finishOneKm();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trialDistKm, phase]);
+
+  // Dev-only: simulate distance increasing over time (1km in 30s)
+  const [simDistKm, setSimDistKm] = useState(0);
+  useEffect(() => {
+    if (!__DEV__ || (phase !== 'qualifying' && phase !== 'retireConfirm')) {
+      setSimDistKm(0);
+      return;
+    }
+    const SIM_DURATION_MS = 30_000;
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      const dist = Math.min(1, (Date.now() - startedAt) / SIM_DURATION_MS);
+      setSimDistKm(dist);
+    }, 200);
+    return () => clearInterval(timer);
+  }, [phase]);
+
+  const effectiveDistKm = __DEV__ ? simDistKm : trialDistKm;
+
   const startWarmup = () => {
     setWarmupLeftSec(RECOMMENDED_WARMUP_MINUTES * 60);
     setTrialStartedAt(null);
     setTrialElapsedMs(0);
-    setResult(null);
     setPhase('warmup');
   };
 
-  const startTrialNow = () => {
+  const skipToQualifying = () => {
     const now = Date.now();
     setWarmupLeftSec(0);
     setTrialStartedAt(now);
     setTrialElapsedMs(0);
-    setPhase('trial');
+    setPhase('qualifying');
   };
 
   const finishOneKm = () => {
     const oneKmMs = Math.max(1000, trialElapsedMs);
-    const next = buildQualifyingResult(oneKmMs);
-    setResult(next);
-    setPhase('result');
+    const result = buildQualifyingResult(oneKmMs);
+    setQualifyingResult(result);
+    navigation.navigate('Home');
   };
 
-  const confirmAndContinue = () => {
-    if (!result) return;
-    onComplete(result);
+  const confirmRetire = () => {
+    setPhase('retireConfirm');
   };
+
+  const cancelRetire = () => {
+    setPhase('qualifying');
+  };
+
+  const executeRetire = () => {
+    setPhase('intro');
+    setWarmupLeftSec(RECOMMENDED_WARMUP_MINUTES * 60);
+    setTrialStartedAt(null);
+    setTrialElapsedMs(0);
+  };
+
+  // Timer font size — measurement-based (same approach as RunningScreen distance)
+  const [warmupSampleW, setWarmupSampleW] = useState(0);
+  const [qualSampleW, setQualSampleW] = useState(0);
+  const availTimerW = windowW - 72; // 36pt margins each side
+  const timerFontSize = useMemo(() => {
+    const maxW = Math.max(warmupSampleW, qualSampleW);
+    if (maxW <= 0) return Math.round(sx * 115);
+    return Math.round(Math.min(1, availTimerW / maxW) * 115);
+  }, [warmupSampleW, qualSampleW, availTimerW, sx]);
+
+  // --- INTRO ---
+  if (phase === 'intro') {
+    return (
+      <View style={{ flex: 1 }}>
+        <IntroScreen
+          windowW={windowW}
+          insetsTop={safeTop}
+          onStart={startWarmup}
+        />
+        {/* BackButton rendered last so it appears above content */}
+        <BackButton onPress={() => navigation.goBack()} />
+      </View>
+    );
+  }
+
+  // --- WARMUP & QUALIFYING (shared container) ---
+  const isWarmup = phase === 'warmup';
+  const isQualifying = phase === 'qualifying' || phase === 'retireConfirm';
+  const showRetireConfirm = phase === 'retireConfirm';
+
+  // Layout constants
+  const btnBottom = 55;
+
+  const iconH = isWarmup ? 21 : 20;
+  const iconW = 18;
+
+  // Badge + timer group: badge at top, timer 8pt below
+  const badgeGroupTop = safeTop + 164;
+  const badgeHeight = 32; // paddingVertical 4×2 + lineHeight 24
+  const timerLineHeight = timerFontSize * 1.2;
+  const timerGroupBottom = badgeGroupTop + badgeHeight + 8 + timerLineHeight;
+
+  // Progress bar — width matches actual rendered qualifying timer text width
+  const barH = 12;
+  // qualSampleW is measured at fontSize 115; scale to current timerFontSize to get actual text width
+  const barTrackW = qualSampleW > 0
+    ? Math.round(qualSampleW * timerFontSize / 115)
+    : windowW - 72;
+  const barLeft = Math.round((windowW - barTrackW) / 2);
+  const barFillW = Math.round(barTrackW * Math.min(1, Math.max(0, effectiveDistKm)));
+  const barTrackTop = Math.max(465, Math.round(timerGroupBottom + 64));
+  const distLabelTop = barTrackTop + barH + 8;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 18, paddingBottom: insets.bottom + 24 }]}>
-      <Text style={styles.title}>QUALIFYING</Text>
-      <Text style={styles.subtitle}>Set your baseline pace before interval programs.</Text>
+    <View style={st.container}>
+      {/* Hidden sample texts — measure actual rendered width to size the timer font correctly */}
+      <Text
+        style={[st.timerMeasure, { fontSize: 115 }]}
+        allowFontScaling={false}
+        numberOfLines={1}
+        onLayout={(e) => {
+          const w = e.nativeEvent.layout.width;
+          if (w > 0 && Math.abs(w - warmupSampleW) > 0.5) setWarmupSampleW(w);
+        }}
+      >
+        5:00
+      </Text>
+      <Text
+        style={[st.timerMeasure, { fontSize: 115 }]}
+        allowFontScaling={false}
+        numberOfLines={1}
+        onLayout={(e) => {
+          const w = e.nativeEvent.layout.width;
+          if (w > 0 && Math.abs(w - qualSampleW) > 0.5) setQualSampleW(w);
+        }}
+      >
+        {`9'59"`}
+      </Text>
 
-      <View style={styles.card}>
-        <View style={styles.row}>
-          <Text style={styles.label}>DRIVER</Text>
-          <Text style={styles.value}>{driverCode} #{profile.raceNumber}</Text>
+      {/* Badge + timer grouped — 8pt gap between them */}
+      <View style={[st.timerGroup, { top: badgeGroupTop }]}>
+        <View style={st.labelBadge}>
+          <Image
+            source={isWarmup ? WARMUP_ICON : RUN_ICON}
+            style={{ width: iconW, height: iconH }}
+            resizeMode="contain"
+          />
+          <Text style={st.labelBadgeText}>
+            {isWarmup ? 'Warm-up' : 'Qualifying'}
+          </Text>
         </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>FLOW</Text>
-          <Text style={styles.value}>FLYING LAP {RECOMMENDED_WARMUP_MINUTES} MIN - 1KM TIME TRIAL</Text>
-        </View>
-        <Text style={styles.help}>
-          Warm-up recommendation: easy jog first, then 3-4 short accelerations before the 1km effort.
+        <Text
+          style={[st.timerText, { fontSize: timerFontSize, marginTop: 8 }]}
+          allowFontScaling={false}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.5}
+        >
+          {isWarmup ? fmtClock(warmupLeftSec) : fmtQualTime(trialElapsedMs)}
         </Text>
       </View>
 
-      {phase === 'intro' && (
-        <View style={styles.main}>
-          <Text style={styles.phaseTitle}>HOW QUALIFYING WORKS</Text>
-          <View style={styles.flowRow}>
-            <View style={styles.flowCard}>
-              <Text style={styles.flowStep}>01</Text>
-              <Text style={styles.flowLabel}>WARM-UP</Text>
-              <Text style={styles.flowMeta}>{RECOMMENDED_WARMUP_MINUTES} MIN</Text>
-            </View>
-            <Text style={styles.flowArrow}>-</Text>
-            <View style={styles.flowCard}>
-              <Text style={styles.flowStep}>02</Text>
-              <Text style={styles.flowLabel}>RUN</Text>
-              <Text style={styles.flowMeta}>1KM TRIAL</Text>
-            </View>
-            <Text style={styles.flowArrow}>-</Text>
-            <View style={styles.flowCard}>
-              <Text style={styles.flowStep}>03</Text>
-              <Text style={styles.flowLabel}>GET GRADE</Text>
-              <Text style={styles.flowMeta}>A - D</Text>
-            </View>
-          </View>
-          <View style={styles.gradeCard}>
-            <Text style={styles.gradeTitle}>GRADE GUIDE (1KM)</Text>
-            <View style={styles.gradeBandRow}>
-              <Text style={styles.gradeBand}>A {'<='} 4:30</Text>
-              <Text style={styles.gradeBand}>B {'<='} 5:30</Text>
-              <Text style={styles.gradeBand}>C {'<='} 6:30</Text>
-              <Text style={styles.gradeBand}>D {'>'} 6:30</Text>
-            </View>
-            <Text style={styles.gradeDesc}>
-              Your grade sets baseline pace and interval intensity for upcoming running programs.
-            </Text>
-          </View>
-          <Text style={styles.phaseDesc}>
-            Start qualifying to measure your current level first. We will use this result to tailor your interval plan.
-          </Text>
-          <GradientCtaButton
-            width={buttonWidth}
-            height={CTA_HEIGHT}
-            label="START QUALIFYING"
-            enabled
-            textButtonType="checkbox"
-            textButtonLabel="On a Treadmil?"
-            textButtonChecked={isTreadmillMode}
-            onPressTextButton={() => setIsTreadmillMode((prev) => !prev)}
-            onPress={startWarmup}
+      {/* Progress bar — qualifying only */}
+      {isQualifying && (
+        <>
+          <View
+            style={[
+              st.barTrack,
+              {
+                top: barTrackTop,
+                left: barLeft,
+                width: barTrackW,
+                height: barH,
+                borderRadius: barH / 2,
+              },
+            ]}
           />
-        </View>
+          {barFillW > 0 && (
+            <View
+              style={[
+                st.barFillWrap,
+                { top: barTrackTop, left: barLeft, width: barFillW, height: barH, borderRadius: barH / 2 },
+              ]}
+            >
+              <Svg width={barFillW} height={barH}>
+                <Defs>
+                  <SvgLinearGradient id="barGrad" x1="0" y1="0" x2="1" y2="0">
+                    <Stop offset="0%" stopColor={ACCENT} />
+                    <Stop offset="100%" stopColor="#E03A8A" />
+                  </SvgLinearGradient>
+                </Defs>
+                <Rect x={0} y={0} width={barFillW} height={barH} rx={barH / 2} fill="url(#barGrad)" />
+              </Svg>
+            </View>
+          )}
+
+          {/* Distance labels — 0km left-aligned, 1km right-aligned to bar */}
+          <View style={[st.distLabelsRow, { top: distLabelTop, left: barLeft, width: barTrackW }]}>
+            <Text style={st.distLabel} allowFontScaling={false}>0km</Text>
+            <Text style={st.distLabel} allowFontScaling={false}>1km</Text>
+          </View>
+        </>
       )}
 
-      {phase === 'warmup' && (
-        <View style={styles.main}>
-          <Text style={styles.phaseTitle}>FLYING LAP WARM-UP</Text>
-          <Text style={styles.timer}>{fmtClock(warmupLeftSec)}</Text>
-          <Text style={styles.phaseDesc}>Keep this effort easy. Focus on breathing and cadence.</Text>
-          <Pressable onPress={startTrialNow} style={{ width: buttonWidth, height: 52 }}>
-            <SvgButton
-              width={buttonWidth}
-              height={52}
-              radius={12}
-              fill="rgba(255,255,255,0.06)"
-              stroke="rgba(255,255,255,0.2)"
-              strokeWidth={1}
-              textColor="#FFFFFF"
-              fontFamily="Formula1-Bold"
-              fontSize={14}
-              label="START 1KM NOW"
-            />
-          </Pressable>
-        </View>
+      {/* Bottom button — centered */}
+      <View style={[st.bottomBtnWrap, { bottom: btnBottom }]}>
+        {isWarmup ? (
+          <TextChevronButton label="Skip" onPress={skipToQualifying} />
+        ) : (
+          <TextChevronButton label="Retire" onPress={confirmRetire} />
+        )}
+      </View>
+
+      {/* Dev-only: finish button */}
+      {__DEV__ && isQualifying && (
+        <Pressable style={st.devFinishBtn} onPress={finishOneKm}>
+          <Text style={st.devFinishTxt}>FINISH 1KM</Text>
+        </Pressable>
       )}
 
-      {phase === 'trial' && (
-        <View style={styles.main}>
-          <Text style={styles.phaseTitle}>1KM TIME TRIAL</Text>
-          <Text style={styles.timer}>{fmtStopwatch(trialElapsedMs)}</Text>
-          <Text style={styles.phaseDesc}>Push controlled pace. Press FINISH exactly at 1.00km.</Text>
-          <Pressable onPress={finishOneKm} style={{ width: buttonWidth, height: 56 }}>
-            <SvgButton
-              width={buttonWidth}
-              height={56}
-              radius={12}
-              fill="#FCB827"
-              stroke="#FCB827"
-              strokeWidth={1}
-              textColor="#17171C"
-              fontFamily="Formula1-Bold"
-              fontSize={16}
-              label="FINISH 1KM"
-            />
-          </Pressable>
-        </View>
-      )}
-
-      {phase === 'result' && result && (
-        <View style={styles.main}>
-          <Text style={styles.phaseTitle}>QUALIFYING RESULT</Text>
-          <Text style={styles.timer}>{fmtStopwatch(result.oneKmMs)}</Text>
-          <Text style={styles.resultGrade}>GRADE {result.grade}</Text>
-          <Text style={styles.phaseDesc}>{result.nextIntervalHint}</Text>
-          <GradientCtaButton
-            width={buttonWidth}
-            height={56}
-            label="CONTINUE TO READY"
-            enabled
-            onPress={confirmAndContinue}
-          />
-        </View>
+      {/* Retire confirm overlay */}
+      {showRetireConfirm && (
+        <RetireConfirmOverlay
+          onRetire={executeRetire}
+          onContinue={cancelRetire}
+        />
       )}
     </View>
   );
 }
+
+// ─────────────────────────────────────────────
+// Sub-components
+// ─────────────────────────────────────────────
+
+type IntroScreenProps = {
+  windowW: number;
+  insetsTop: number;
+  onStart: () => void;
+};
+
+function IntroScreen({ windowW, insetsTop, onStart }: IntroScreenProps) {
+  const cardBorderRadius = 12;
+  const cardPaddingV = 12;
+  const cardPaddingHEnd = 20;
+  const cardPaddingHStart = 18;
+  const hPad = 28;
+  const ctaContainerH = 164;
+  const ctaWidth = windowW - 56; // fill: 28pt margins × 2
+  const ctaHeight = 54;
+
+  return (
+    <View style={[st.container, { paddingHorizontal: hPad }]}>
+      {/* Title — BackButton bottom (safeTop+39) + 24 gap = safeTop+63 */}
+      <Text
+        style={[st.introTitle, { marginTop: insetsTop + 63 }]}
+        allowFontScaling={false}
+      >
+        Qualifying
+      </Text>
+
+      {/* Subtitle — gap 12 below title */}
+      <Text style={st.introSubtitle} allowFontScaling={false}>
+        {'Find your level.\nGet a plan made only for you.'}
+      </Text>
+
+      {/* Step cards — gap 36 below subtitle */}
+      <View style={[st.cardsWrap, { marginTop: 36, gap: 12 }]}>
+        <StepCard
+          icon={WARMUP_ICON}
+          iconW={22}
+          iconH={26}
+          label="Warm-up"
+          meta="5min"
+          borderRadius={cardBorderRadius}
+          paddingV={cardPaddingV}
+          paddingHStart={cardPaddingHStart}
+          paddingHEnd={cardPaddingHEnd}
+        />
+        <StepCard
+          icon={RUN_ICON}
+          iconW={22}
+          iconH={25}
+          label="Run 1km"
+          meta="Auto-start"
+          borderRadius={cardBorderRadius}
+          paddingV={cardPaddingV}
+          paddingHStart={cardPaddingHStart}
+          paddingHEnd={cardPaddingHEnd}
+        />
+        <StepCard
+          icon={PLAN_ICON}
+          iconW={22}
+          iconH={23}
+          label="Get Plan"
+          meta="Level & Plan"
+          borderRadius={cardBorderRadius}
+          paddingV={cardPaddingV}
+          paddingHStart={cardPaddingHStart}
+          paddingHEnd={cardPaddingHEnd}
+        />
+      </View>
+
+      {/* Bottom CTA area — absolute, fade gradient + GradientCtaButton (has its own glow) */}
+      <View
+        style={[st.ctaContainer, { height: ctaContainerH }]}
+        pointerEvents="box-none"
+      >
+        {/* Fade gradient: solid #17171C at bottom, transparent at top */}
+        <Svg
+          width={windowW}
+          height={ctaContainerH}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        >
+          <Defs>
+            <SvgLinearGradient id="introFade" x1="0" y1="1" x2="0" y2="0">
+              <Stop offset="0%" stopColor="#17171C" stopOpacity="1" />
+              <Stop offset="66%" stopColor="#17171C" stopOpacity="1" />
+              <Stop offset="100%" stopColor="#17171C" stopOpacity="0" />
+            </SvgLinearGradient>
+          </Defs>
+          <Rect x={0} y={0} width={windowW} height={ctaContainerH} fill="url(#introFade)" />
+        </Svg>
+
+        {/* GradientCtaButton — already includes glow internally */}
+        <View style={[st.ctaBtnWrap, { bottom: 40 }]}>
+          <GradientCtaButton
+            width={ctaWidth}
+            height={ctaHeight}
+            label="Start"
+            enabled
+            onPress={onStart}
+          />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+type StepCardProps = {
+  icon: ImageSourcePropType;
+  iconW: number;
+  iconH: number;
+  label: string;
+  meta: string;
+  borderRadius: number;
+  paddingV: number;
+  paddingHStart: number;
+  paddingHEnd: number;
+};
+
+function StepCard({
+  icon, iconW, iconH, label, meta,
+  borderRadius, paddingV, paddingHStart, paddingHEnd,
+}: StepCardProps) {
+  return (
+    <View
+      style={[
+        st.stepCard,
+        {
+          borderRadius,
+          paddingVertical: paddingV,
+          paddingLeft: paddingHStart,
+          paddingRight: paddingHEnd,
+        },
+      ]}
+    >
+      <View style={st.stepCardLeft}>
+        <Image source={icon} style={{ width: iconW, height: iconH }} resizeMode="contain" />
+        <Text style={st.stepCardLabel} allowFontScaling={false}>
+          {label}
+        </Text>
+      </View>
+      <Text style={st.stepCardMeta} allowFontScaling={false}>
+        {meta}
+      </Text>
+    </View>
+  );
+}
+
+type RetireConfirmProps = {
+  onRetire: () => void;
+  onContinue: () => void;
+};
+
+function RetireConfirmOverlay({ onRetire, onContinue }: RetireConfirmProps) {
+  const modalRadius = 24;
+  const innerPad = 28;
+
+  // Animation: slide up from bottom on mount, slide down on dismiss
+  const slideAnim = useRef(new Animated.Value(400)).current;
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(overlayOpacity, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        damping: 22,
+        stiffness: 220,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  const dismiss = (callback: () => void) => {
+    Animated.parallel([
+      Animated.timing(overlayOpacity, {
+        toValue: 0,
+        duration: 200,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 400,
+        duration: 260,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (finished) callback();
+    });
+  };
+
+  return (
+    <Animated.View style={[StyleSheet.absoluteFill, st.retireOverlay, { opacity: overlayOpacity }]}>
+      <Animated.View
+        style={[
+          st.retireCard,
+          { borderRadius: modalRadius, transform: [{ translateY: slideAnim }] },
+        ]}
+      >
+        {/* Title — paddingTop:32 은 retireCard에 */}
+        <Text style={[st.retireTitleText, { paddingHorizontal: innerPad }]} allowFontScaling={false}>
+          Are you sure?
+        </Text>
+
+        {/* Description — title↔body: 24 */}
+        <Text style={[st.retireDescText, { paddingHorizontal: innerPad, marginTop: 24 }]} allowFontScaling={false}>
+          Your session will not be saved and you'll need to restart qualifying
+        </Text>
+
+        {/* Buttons row — body↔buttons: 32 */}
+        <View style={[st.retireBtnsRow, { marginTop: 32 }]}>
+          {/* Continue (left) */}
+          <Pressable
+            onPress={() => dismiss(onContinue)}
+            style={[st.retireBtn, st.retireContinueBtn, { borderRadius: 12 }]}
+          >
+            <Text style={[st.retireBtnLabel, { color: '#FFFFFF' }]} allowFontScaling={false}>
+              Continue
+            </Text>
+          </Pressable>
+
+          {/* Retire (right) */}
+          <Pressable
+            onPress={() => dismiss(onRetire)}
+            style={[st.retireBtn, st.retireRetireBtn, { borderRadius: 12 }]}
+          >
+            <Text style={[st.retireBtnLabel, { color: ACCENT }]} allowFontScaling={false}>
+              Retire
+            </Text>
+          </Pressable>
+        </View>
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────
 
 function buildQualifyingResult(oneKmMs: number): QualifyingResult {
   const paceSec = oneKmMs / 1000;
@@ -237,7 +574,7 @@ function buildQualifyingResult(oneKmMs: number): QualifyingResult {
       oneKmMs,
       paceSecPerKm: paceSec,
       grade: 'A',
-      nextIntervalHint: 'A Grade: 400m x 6, recovery 90s, target pace 4:45-5:05/km.',
+      nextIntervalHint: 'A Grade: 400m x 6, recovery 90s, target pace 4:45–5:05/km.',
     };
   }
   if (paceSec <= 330) {
@@ -246,7 +583,7 @@ function buildQualifyingResult(oneKmMs: number): QualifyingResult {
       oneKmMs,
       paceSecPerKm: paceSec,
       grade: 'B',
-      nextIntervalHint: 'B Grade: 400m x 5, recovery 90s, target pace 5:20-5:45/km.',
+      nextIntervalHint: 'B Grade: 400m x 5, recovery 90s, target pace 5:20–5:45/km.',
     };
   }
   if (paceSec <= 390) {
@@ -255,7 +592,7 @@ function buildQualifyingResult(oneKmMs: number): QualifyingResult {
       oneKmMs,
       paceSecPerKm: paceSec,
       grade: 'C',
-      nextIntervalHint: 'C Grade: 300m x 5, recovery 90-120s, target pace 6:00-6:35/km.',
+      nextIntervalHint: 'C Grade: 300m x 5, recovery 90–120s, target pace 6:00–6:35/km.',
     };
   }
   return {
@@ -273,174 +610,225 @@ function fmtClock(totalSec: number): string {
   return `${min}:${sec < 10 ? '0' : ''}${sec}`;
 }
 
-function fmtStopwatch(ms: number): string {
-  const total = Math.floor(ms / 10);
-  const cs = total % 100;
-  const sec = Math.floor(total / 100) % 60;
-  const min = Math.floor(total / 6000);
-  return `${min}:${sec < 10 ? '0' : ''}${sec}.${cs < 10 ? '0' : ''}${cs}`;
+function fmtQualTime(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min}'${sec < 10 ? '0' : ''}${sec}"`;
 }
 
-const styles = StyleSheet.create({
+// ─────────────────────────────────────────────
+// Styles
+// ─────────────────────────────────────────────
+
+const st = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#17171C',
-    paddingHorizontal: 28,
-    gap: 16,
   },
-  title: {
+
+  // ── Intro ──
+  introTitle: {
     color: '#FFFFFF',
     fontFamily: 'Formula1-Black',
     fontSize: 36,
-    letterSpacing: 1,
+    letterSpacing: 1.8,
+    includeFontPadding: false,
   },
-  subtitle: {
-    color: 'rgba(255,255,255,0.72)',
-    fontFamily: 'Formula1-Regular',
-    fontSize: 13,
-  },
-  card: {
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    backgroundColor: '#202028',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 10,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  label: {
-    color: 'rgba(255,255,255,0.58)',
-    fontFamily: 'Formula1-Regular',
-    fontSize: 12,
-  },
-  value: {
+  introSubtitle: {
     color: '#FFFFFF',
-    fontFamily: 'Formula1-Bold',
-    fontSize: 12,
-    textAlign: 'right',
-    flex: 1,
-  },
-  help: {
-    color: 'rgba(255,255,255,0.7)',
+    opacity: 0.5,
     fontFamily: 'Formula1-Regular',
-    fontSize: 12,
-    lineHeight: 18,
+    fontSize: 20,
+    lineHeight: 26,
+    letterSpacing: -0.4,
+    marginTop: 12,
+    includeFontPadding: false,
   },
-  main: {
-    flex: 1,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    backgroundColor: '#1D1D24',
-    paddingHorizontal: 16,
-    paddingVertical: 22,
+  cardsWrap: {
+    width: '100%',
+  },
+  stepCard: {
+    backgroundColor: '#202028',
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     gap: 16,
   },
-  phaseTitle: {
-    color: '#FFFFFF',
-    fontFamily: 'Formula1-Bold',
-    fontSize: 21,
-    textAlign: 'center',
-  },
-  timer: {
-    color: '#FFFFFF',
-    fontFamily: 'Formula1-Black',
-    fontSize: 54,
-    letterSpacing: 1.2,
-  },
-  phaseDesc: {
-    color: 'rgba(255,255,255,0.76)',
-    fontFamily: 'Formula1-Regular',
-    fontSize: 12,
-    lineHeight: 19,
-    textAlign: 'center',
-  },
-  flowRow: {
-    width: '100%',
+  stepCardLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
+    gap: 10,
   },
-  flowCard: {
-    flex: 1,
-    minHeight: 82,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-    gap: 4,
+  stepCardLabel: {
+    color: '#FFFFFF',
+    fontFamily: 'Formula1-Bold',
+    fontSize: 20,
+    letterSpacing: -0.4,
+    includeFontPadding: false,
   },
-  flowStep: {
-    color: 'rgba(255,255,255,0.52)',
+  stepCardMeta: {
+    color: '#FFFFFF',
+    opacity: 0.5,
     fontFamily: 'Formula1-Regular',
-    fontSize: 10,
+    fontSize: 17,
+    letterSpacing: -0.34,
+    includeFontPadding: false,
   },
-  flowLabel: {
-    color: '#FFFFFF',
-    fontFamily: 'Formula1-Bold',
-    fontSize: 11,
+  ctaContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    justifyContent: 'flex-end',
   },
-  flowMeta: {
-    color: '#FCB827',
-    fontFamily: 'Formula1-Bold',
-    fontSize: 10,
+  ctaBtnWrap: {
+    position: 'absolute',
+    left: 28,
+    right: 28,
   },
-  flowArrow: {
-    color: 'rgba(255,255,255,0.5)',
-    fontFamily: 'Formula1-Bold',
-    fontSize: 16,
+
+  // ── Warmup / Qualifying ──
+  timerGroup: {
+    position: 'absolute',
+    left: 36,
+    right: 36,
+    alignItems: 'center',
   },
-  gradeCard: {
-    width: '100%',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(224,58,62,0.4)',
-    backgroundColor: 'rgba(224,58,62,0.08)',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
-  },
-  gradeTitle: {
-    color: '#FFFFFF',
-    fontFamily: 'Formula1-Bold',
-    fontSize: 11,
-  },
-  gradeBandRow: {
+  labelBadge: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
     gap: 6,
+    backgroundColor: 'rgba(224,58,62,0.3)',
+    borderRadius: 2,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
   },
-  gradeBand: {
+  labelBadgeText: {
+    color: ACCENT,
+    fontFamily: 'Formula1-Regular',
+    fontSize: 20,
+    lineHeight: 24,
+    letterSpacing: -0.4,
+    includeFontPadding: false,
+  },
+  timerText: {
+    alignSelf: 'stretch',
+    textAlign: 'center',
+    color: '#FFFFFF',
+    fontFamily: 'Formula1-Black',
+    letterSpacing: 5,
+    includeFontPadding: false,
+  },
+  timerMeasure: {
+    position: 'absolute',
+    opacity: 0,
+    left: -9999,
+    top: -9999,
+    fontFamily: 'Formula1-Black',
+    letterSpacing: 5,
+    includeFontPadding: false,
+  },
+  barTrack: {
+    position: 'absolute',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  barFillWrap: {
+    position: 'absolute',
+    overflow: 'hidden',
+  },
+  distLabel: {
+    color: '#FFFFFF',
+    opacity: 0.5,
+    fontFamily: 'Formula1-Regular',
+    fontSize: 17,
+    letterSpacing: -0.17,
+    includeFontPadding: false,
+  },
+  distLabelsRow: {
+    position: 'absolute',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  bottomBtnWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+
+  // ── Dev ──
+  devFinishBtn: {
+    position: 'absolute',
+    top: 44,
+    left: 16,
+    backgroundColor: 'rgba(252,184,39,0.2)',
+    borderWidth: 1,
+    borderColor: '#FCB827',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  devFinishTxt: {
+    color: '#FCB827',
+    fontFamily: 'Formula1-Bold',
+    fontSize: 10,
+    includeFontPadding: false,
+  },
+
+  // ── Retire confirm ──
+  retireOverlay: {
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+  },
+  retireCard: {
+    backgroundColor: '#202028',
+    marginHorizontal: 20,
+    marginBottom: 26,
+    paddingTop: 32,
+    paddingBottom: 20,
+  },
+  retireTitleText: {
     color: '#FFFFFF',
     fontFamily: 'Formula1-Regular',
-    fontSize: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    borderRadius: 6,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  gradeDesc: {
-    color: 'rgba(255,255,255,0.74)',
-    fontFamily: 'Formula1-Regular',
-    fontSize: 11,
-    lineHeight: 16,
-  },
-  resultGrade: {
-    color: '#FCB827',
-    fontFamily: 'Formula1-Black',
+    fontStyle: 'italic',
     fontSize: 30,
-    letterSpacing: 1.3,
+    lineHeight: 36,
+    letterSpacing: -0.3,
+    includeFontPadding: false,
+  },
+  retireDescText: {
+    color: '#FFFFFF',
+    opacity: 0.5,
+    fontFamily: 'Formula1-Regular',
+    fontStyle: 'italic',
+    fontSize: 20,
+    lineHeight: 26,
+    letterSpacing: -0.2,
+    includeFontPadding: false,
+  },
+  retireBtnsRow: {
+    flexDirection: 'row',
+    gap: 16,
+    paddingHorizontal: 20,
+  },
+  retireBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+  },
+  retireContinueBtn: {
+    backgroundColor: '#34343F',
+  },
+  retireRetireBtn: {
+    backgroundColor: 'rgba(224,58,62,0.3)',
+  },
+  retireBtnLabel: {
+    fontFamily: 'Formula1-Bold',
+    fontSize: 22,
+    letterSpacing: -0.22,
+    includeFontPadding: false,
   },
 });

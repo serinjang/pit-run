@@ -12,6 +12,8 @@ interface Props {
   path?: string;
   accentColor?: string;
   overlays?: Array<{ d: string; fill: 'accent' | 'light' }>;
+  viewBoxWidth?: number;
+  viewBoxHeight?: number;
 }
 
 export const CIRCUIT_VIEWBOX = { width: 286, height: 185 } as const;
@@ -85,7 +87,11 @@ export default function CircuitMap({
   path = CIRCUIT_PATH,
   accentColor,
   overlays,
+  viewBoxWidth,
+  viewBoxHeight,
 }: Props) {
+  const vbW = viewBoxWidth ?? CIRCUIT_VIEWBOX.width;
+  const vbH = viewBoxHeight ?? CIRCUIT_VIEWBOX.height;
   const p = Math.max(0, Math.min(progress, 1));
   const totalLength = getTotalLength(path);
   const drawn = Math.max(2, p * totalLength);
@@ -108,7 +114,7 @@ export default function CircuitMap({
 
   return (
     <View style={s.wrap}>
-      <Svg width="100%" height="100%" viewBox={`0 0 ${CIRCUIT_VIEWBOX.width} ${CIRCUIT_VIEWBOX.height}`} preserveAspectRatio="xMidYMid meet">
+      <Svg width="100%" height="100%" viewBox={`0 0 ${vbW} ${vbH}`} preserveAspectRatio="xMidYMid meet">
         <Path d={path} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={5} strokeMiterlimit={10} />
         {overlays?.map((o, i) => (
           <Path

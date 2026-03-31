@@ -62,13 +62,12 @@ export default function GradientCtaButton({
           {showCheckbox && (
             <View style={[styles.checkboxBase, textButtonChecked ? styles.checkboxChecked : null]}>
               {textButtonChecked && (
-                <Svg width={8} height={5} viewBox="0 0 8 5">
+                <Svg width={10} height={7} viewBox="0 0 10 7">
                   <Path
-                    d="M1 2.5L3.2 4L7 1"
+                    d="M1 3L3.29289 5.29289C3.68342 5.68342 4.31658 5.68342 4.70711 5.29289L9 1"
                     stroke="#FFFFFF"
                     strokeWidth={2}
                     strokeLinecap="round"
-                    strokeLinejoin="round"
                     fill="none"
                   />
                 </Svg>

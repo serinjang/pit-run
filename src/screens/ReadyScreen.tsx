@@ -1,5 +1,7 @@
 import React from 'react';
-import { Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import Svg, { Defs, LinearGradient as SvgLinearGradient, Rect, Stop } from 'react-native-svg';
+
 import type { CircuitDefinition } from '../config/circuits';
 import SvgButton from '../components/SvgButton';
 import GradientCtaButton from '../components/GradientCtaButton';
@@ -27,11 +29,7 @@ type ReadyScreenProps = {
   qualifyingResult: QualifyingResult | null;
 };
 
-const SCREEN_W = Dimensions.get('window').width;
-const CARD_CONTENT_W = SCREEN_W - 24 * 2 - 14 * 2;
 const OPTION_H = 48;
-const START_W = SCREEN_W - 24 * 2;
-const START_H = 58;
 
 export default function ReadyScreen({
   circuits,
@@ -41,8 +39,15 @@ export default function ReadyScreen({
   profile,
   qualifyingResult,
 }: ReadyScreenProps) {
+  const { width: windowW } = useWindowDimensions();
+  const hPad = 28;
+  const cardContentW = windowW - hPad * 2 - 14 * 2;
+  const ctaContainerH = 164;
+  const ctaWidth = windowW - 56; // 28pt margins × 2
+  const ctaHeight = 54;
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingHorizontal: hPad, paddingBottom: ctaContainerH }]}>
       <Text style={styles.title}>PIT RUN</Text>
       <Text style={styles.subtitle}>러닝 기록 시작 전에 서킷을 선택하세요</Text>
 
@@ -79,10 +84,10 @@ export default function ReadyScreen({
               <Pressable
                 key={circuit.id}
                 onPress={() => onSelectCircuit(circuit.id)}
-                style={styles.circuitOptionPress}
+                style={[styles.circuitOptionPress, { width: cardContentW }]}
               >
                 <SvgButton
-                  width={CARD_CONTENT_W}
+                  width={cardContentW}
                   height={OPTION_H}
                   radius={10}
                   fill={selected ? '#FCB827' : 'rgba(255,255,255,0.02)'}
@@ -100,14 +105,33 @@ export default function ReadyScreen({
         </View>
       </View>
 
-      <GradientCtaButton
-        width={START_W}
-        height={START_H}
-        label="러닝 기록 시작"
-        enabled
-        onPress={onStart}
-        style={styles.startButtonPress}
-      />
+      {/* Bottom CTA area — absolute overlay with fade gradient */}
+      <View style={[styles.ctaContainer, { height: ctaContainerH }]} pointerEvents="box-none">
+        <Svg
+          width={windowW}
+          height={ctaContainerH}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        >
+          <Defs>
+            <SvgLinearGradient id="readyFade" x1="0" y1="1" x2="0" y2="0">
+              <Stop offset="0%" stopColor="#17171C" stopOpacity="1" />
+              <Stop offset="66%" stopColor="#17171C" stopOpacity="1" />
+              <Stop offset="100%" stopColor="#17171C" stopOpacity="0" />
+            </SvgLinearGradient>
+          </Defs>
+          <Rect x={0} y={0} width={windowW} height={ctaContainerH} fill="url(#readyFade)" />
+        </Svg>
+        <View style={[styles.ctaBtnWrap, { bottom: 40 }]}>
+          <GradientCtaButton
+            width={ctaWidth}
+            height={ctaHeight}
+            label="러닝 기록 시작"
+            enabled
+            onPress={onStart}
+          />
+        </View>
+      </View>
     </View>
   );
 }
@@ -116,7 +140,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#17171C',
-    paddingHorizontal: 24,
     justifyContent: 'center',
     gap: 18,
   },
@@ -132,6 +155,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 10,
     fontFamily: 'Formula1-Regular',
+    fontSize: 14,
   },
   card: {
     borderRadius: 14,
@@ -165,14 +189,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   circuitOptionPress: {
-    width: CARD_CONTENT_W,
     height: OPTION_H,
   },
-  startButtonPress: {
-    marginTop: 6,
-    width: START_W,
-    height: START_H,
-    alignSelf: 'center',
+  ctaContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  ctaBtnWrap: {
+    position: 'absolute',
+    left: 28,
+    right: 28,
   },
 });
 

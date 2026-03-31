@@ -4,6 +4,7 @@ import { Asset } from 'expo-asset';
 import { useDistanceDisplayFont } from '../hooks/useDistanceDisplayFont';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import TextChevronButton from '../components/TextChevronButton';
+import type { CountdownScreenProps } from '../navigation/types';
 
 const COUNTDOWN_PAGE_MS = 1000;
 const DISSOLVE_MS = 120;
@@ -12,7 +13,6 @@ const DIGIT_OCCUPANCY_Y = 1 / 3;
 const DIGIT_TOP_IN_PNG_RATIO = 0.305;
 const DESIGN_SCREEN_HEIGHT = 874;
 const RUNNING_DISTANCE_TOP = 174;
-const SKIP_BOTTOM_OFFSET = 55;
 
 type CountdownValue = 5 | 4 | 3 | 2 | 1 | 0;
 
@@ -59,11 +59,8 @@ const COUNTDOWN_IMAGE_MODULES = [
   SIGNAL_SOURCE[0],
 ];
 
-type CountdownScreenProps = {
-  onFinish: () => void;
-};
-
-export default function CountdownScreen({ onFinish }: CountdownScreenProps) {
+export default function CountdownScreen({ navigation }: CountdownScreenProps) {
+  const onFinish = () => navigation.replace('Running');
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [count, setCount] = useState<CountdownValue>(5);
@@ -221,12 +218,7 @@ export default function CountdownScreen({ onFinish }: CountdownScreenProps) {
         <TextChevronButton
           label="Skip"
           onPress={finishCountdown}
-          style={[
-            styles.skipButton,
-            {
-              bottom: Math.max((screenHeight * SKIP_BOTTOM_OFFSET) / DESIGN_SCREEN_HEIGHT, insets.bottom + 16),
-            },
-          ]}
+          style={[styles.skipButton, { bottom: 55 }]}
         />
       )}
     </View>

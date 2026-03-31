@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeTop } from '../hooks/useSafeTop';
 import { useRunStore } from '../store/runStore';
 import { useDistanceDisplayFont } from '../hooks/useDistanceDisplayFont';
 import { useRunning } from '../hooks/useRunning';
@@ -18,6 +19,9 @@ import CircuitMap, {
   getCircuitPointAtProgress,
   getCircuitTangentAtProgress,
 } from '../components/CircuitMap';
+import { CIRCUITS } from '../config/circuits';
+import { useAppStore } from '../store/appStore';
+import type { RunningScreenProps as NavRunningScreenProps } from '../navigation/types';
 
 const FW = 402;
 const FH = 874;
@@ -41,6 +45,7 @@ const CONTROLS_TOP_SPACING = 20;
 const CONTROLS_BOTTOM_SPACING = 32;
 const CIRCUIT_STROKE_WIDTH = 5;
 const SHOW_DEBUG_SECTOR_SWITCH = __DEV__;
+const SHOW_DEBUG_CIRCUIT_SWITCH = __DEV__;
 const BOXBOX_ALERT_MS = 4000;
 const IN_PIT_DURATION_MS = 8000;
 const FULL_PUSH_ALERT_MS = 4000;
@@ -63,24 +68,15 @@ const TOP_THEME_BY_CIRCUIT: Record<string, { line: string; text: string }> = {
   SPA: { line: '#FCB827', text: '#FCB827' },
 };
 
-type RunningScreenProps = {
-  onStop: () => void;
-  circuit?: {
-    displayName: string;
-    distanceKm: number;
-    trackPath?: string;
-    flagAsset?: any;
-    startMarker?: { xRatio: number; yRatio: number; angleDeg: number };
-    checkerFlag?: { xRatio: number; yRatio: number; angleDeg: number };
-  };
-  profile?: { displayName: string; raceNumber?: string; nameTagAccentColor: string };
-  records?: { bestEverSecPerKm: number; todayBestSecPerKm: number };
-  onPaceSample?: (paceSecPerKm: number) => void;
-};
-
-export default function RunningScreen({ onStop, circuit, profile, onPaceSample }: RunningScreenProps) {
+export default function RunningScreen({ navigation }: NavRunningScreenProps) {
+  const { selectedCircuitId, profile: storeProfile, updatePaceRecord } = useAppStore();
+  const circuit = CIRCUITS.find((c) => c.id === selectedCircuitId) ?? CIRCUITS[0];
+  const profile = storeProfile;
+  const onStop = () => navigation.navigate('Home');
+  const onPaceSample = (pace: number) => updatePaceRecord(pace);
   const { width: windowW, height: windowH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const safeTop = useSafeTop();
   const [initialW] = useState(windowW);
   const [initialH] = useState(windowH);
 
@@ -111,6 +107,11 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
   } = useRunStore();
   const pitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const [debugCircuitIdx, setDebugCircuitIdx] = useState(() =>
+    Math.max(0, CIRCUITS.findIndex((c) => c.id === circuit?.id)),
+  );
+  const activeCircuit = SHOW_DEBUG_CIRCUIT_SWITCH ? (CIRCUITS[debugCircuitIdx] ?? circuit) : circuit;
+
   useRunning();
 
   useEffect(() => {
@@ -122,22 +123,22 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
   const displayTheme = isInPitTheme
     ? { start: '#FFFFFF', end: '#CBCBCC' }
     : { start: cfg.start, end: cfg.end };
-  const circuitLabel = circuit?.displayName ?? 'Shanghai';
-  const circuitKm = circuit?.distanceKm ?? CIRCUIT_KM;
-  const circuitPath = circuit?.trackPath;
+  const circuitLabel = activeCircuit?.displayName ?? 'Shanghai';
+  const circuitKm = activeCircuit?.distanceKm ?? CIRCUIT_KM;
+  const circuitPath = activeCircuit?.trackPath;
   const topTheme =
     isInPitTheme
       ? { line: '#FFFFFF', text: '#FFFFFF' }
       : TOP_THEME_BY_CIRCUIT[circuitLabel.toUpperCase()] ?? { line: '#E03A3E', text: '#E03A3E' };
   const raceStatusLabel = isInPitTheme ? 'IN PIT' : isPaused ? 'PAUSED' : 'RACING';
-  const topInfoTop = insets.top + t(15);
-  const topLineTop = insets.top + t(49);
+  const topInfoTop = safeTop + 24;
+  const topLineTop = safeTop + 58;
   const topLineBottom = topLineTop + 4;
   const nameTagLabel = getDriverCode(profile?.displayName ?? '');
   const boxBoxDriverName = getDriverDisplayName(profile?.displayName ?? '');
   const boxBoxTeamColor = profile?.nameTagAccentColor ?? '#E03A3E';
 
-  const DIST_LEFT = s(36);
+  const DIST_LEFT = 36; // fixed 36pt margin
   const DIST_RIGHT = windowW - DIST_LEFT;
   const distFrameWidth = DIST_RIGHT - DIST_LEFT;
 
@@ -159,8 +160,8 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
   const paceValue = fmtPace(paceS);
   const [paceMaxWidth, setPaceMaxWidth] = useState<number>(0);
   const [paceCurrentWidth, setPaceCurrentWidth] = useState<number>(0);
-  const paceTextWidth = (paceMaxWidth > 0 ? paceMaxWidth : s(84)) + s(2);
-  const paceCurrentStartOffset = paceCurrentWidth > 0 ? paceCurrentWidth : (paceMaxWidth > 0 ? paceMaxWidth : s(84));
+  const paceTextWidth = (paceMaxWidth > 0 ? paceMaxWidth : 84) + 2;
+  const paceCurrentStartOffset = paceCurrentWidth > 0 ? paceCurrentWidth : (paceMaxWidth > 0 ? paceMaxWidth : 84);
   const paceRight = distRenderWidth > 0 ? distEndX : DIST_RIGHT;
   const paceLeft = paceRight - paceTextWidth;
   const paceLabelLeft = paceRight - paceCurrentStartOffset;
@@ -187,9 +188,11 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
   const circuitLeft = DIST_LEFT + (distFrameWidth - circuitW) / 2;
   const circuitTop = statsValueBottom + baseCircuitGap;
 
-  const circuitScale = Math.min(circuitW / CIRCUIT_VIEWBOX.width, circuitH / CIRCUIT_VIEWBOX.height);
-  const circuitOffsetX = (circuitW - CIRCUIT_VIEWBOX.width * circuitScale) / 2;
-  const circuitOffsetY = (circuitH - CIRCUIT_VIEWBOX.height * circuitScale) / 2;
+  const cvbW = activeCircuit?.viewBox?.width ?? CIRCUIT_VIEWBOX.width;
+  const cvbH = activeCircuit?.viewBox?.height ?? CIRCUIT_VIEWBOX.height;
+  const circuitScale = Math.min(circuitW / cvbW, circuitH / cvbH);
+  const circuitOffsetX = (circuitW - cvbW * circuitScale) / 2;
+  const circuitOffsetY = (circuitH - cvbH * circuitScale) / 2;
   const circuitPoint = getCircuitPointAtProgress(prog, circuitPath);
   const tangent = getCircuitTangentAtProgress(prog, circuitPath);
 
@@ -251,9 +254,9 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
     <View style={st.container}>
       <View style={[st.topInfoRow, { top: topInfoTop }]}>
         <View style={st.topInfoLeft}>
-          {circuit?.flagAsset ? (
+          {activeCircuit?.flagAsset ? (
             <View style={st.flagWrap}>
-              <Image source={circuit.flagAsset} style={st.flagImage} resizeMode="cover" />
+              <Image source={activeCircuit.flagAsset} style={st.flagImage} resizeMode="cover" />
             </View>
           ) : null}
           <Text style={[st.topTrackText, { color: topTheme.text }]}>
@@ -266,10 +269,11 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
       </View>
       <View style={[st.topDivider, { top: topLineTop, backgroundColor: topTheme.line }]} />
 
-      <View style={[st.distCenterWrap, { top: distTop, left: DIST_LEFT, right: DIST_LEFT }]}> 
+      <View style={[st.distCenterWrap, { top: distTop, left: DIST_LEFT, right: DIST_LEFT }]}>
         <Text
           numberOfLines={1}
-          ellipsizeMode="clip"
+          adjustsFontSizeToFit
+          minimumFontScale={0.5}
           allowFontScaling={false}
           onLayout={(e) => {
             const w = e.nativeEvent.layout.width;
@@ -360,7 +364,9 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
           endColor={displayTheme.end}
           path={circuitPath}
           accentColor={displayTheme.start}
-          overlays={circuit?.overlays}
+          overlays={activeCircuit?.overlays}
+          viewBoxWidth={activeCircuit?.viewBox?.width}
+          viewBoxHeight={activeCircuit?.viewBox?.height}
         />
       </View>
 
@@ -394,6 +400,28 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
         </View>
       )}
 
+      {SHOW_DEBUG_CIRCUIT_SWITCH && (
+        <View style={st.debugCircuitWrap}>
+          <Pressable
+            onPress={() => setDebugCircuitIdx((i) => (i - 1 + CIRCUITS.length) % CIRCUITS.length)}
+            style={st.debugCircuitArrow}
+            hitSlop={8}
+          >
+            <Text style={st.debugCircuitArrowTxt}>◀</Text>
+          </Pressable>
+          <Text style={st.debugCircuitName} numberOfLines={1}>
+            {activeCircuit?.displayName ?? '—'}
+          </Text>
+          <Pressable
+            onPress={() => setDebugCircuitIdx((i) => (i + 1) % CIRCUITS.length)}
+            style={st.debugCircuitArrow}
+            hitSlop={8}
+          >
+            <Text style={st.debugCircuitArrowTxt}>▶</Text>
+          </Pressable>
+        </View>
+      )}
+
       <View
         style={{
           position: 'absolute',
@@ -404,7 +432,7 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
           paddingBottom: controlsBottomPadding,
           flexDirection: 'row',
           justifyContent: 'center',
-          gap: s(24),
+          gap: 32,
         }}
       >
         {isPaused ? (
@@ -537,6 +565,39 @@ const st = StyleSheet.create({
     gap: 8,
     zIndex: 20,
     alignItems: 'center',
+  },
+  debugCircuitWrap: {
+    position: 'absolute',
+    bottom: 120,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    zIndex: 20,
+  },
+  debugCircuitArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  debugCircuitArrowTxt: {
+    color: '#FFFFFF',
+    fontSize: 14,
+  },
+  debugCircuitName: {
+    color: '#FFFFFF',
+    fontFamily: 'Formula1-Bold',
+    fontSize: 12,
+    letterSpacing: 0.5,
+    includeFontPadding: false,
+    maxWidth: 160,
+    textAlign: 'center',
+    opacity: 0.7,
   },
   debugBoxBoxBtn: {
     height: 28,

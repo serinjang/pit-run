@@ -1,18 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import Svg, { Defs, LinearGradient as SvgLinearGradient, Rect, Stop } from 'react-native-svg';
+
 import { getDriverCode } from '../utils/driverCode';
 import GradientCtaButton from '../components/GradientCtaButton';
-
-type UserProfile = {
-  displayName: string;
-  raceNumber: string;
-  nameTagAccentColor: string;
-};
-
-type ProfileSetupScreenProps = {
-  initialProfile: UserProfile;
-  onComplete: (profile: UserProfile) => void;
-};
+import { useAppStore } from '../store/appStore';
+import type { ProfileSetupScreenProps } from '../navigation/types';
 
 const TEAM_COLORS = ['#E03A8A', '#E03A3E', '#FF8716', '#FCB827', '#59B345', '#04CBBA', '#3F5CFF', '#8528C5', '#FFFFFF'] as const;
 const NAME_MAX_LEN = 20;
@@ -30,9 +23,12 @@ function toDriverNameCase(value: string) {
     .join('');
 }
 
-export default function ProfileSetupScreen({ initialProfile, onComplete }: ProfileSetupScreenProps) {
+export default function ProfileSetupScreen({ navigation }: ProfileSetupScreenProps) {
+  const { profile: initialProfile, setProfile } = useAppStore();
   const { width: windowW } = useWindowDimensions();
   const contentWidth = Math.max(0, windowW - 56);
+  const ctaContainerH = 164;
+  const ctaHeight = 54;
   const nameRef = useRef<TextInput | null>(null);
   const numberRef = useRef<TextInput | null>(null);
 
@@ -180,7 +176,7 @@ export default function ProfileSetupScreen({ initialProfile, onComplete }: Profi
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: ctaContainerH }]}>
       <Text style={styles.title}>PIT RUN</Text>
 
       <View style={styles.formWrap}>
@@ -285,18 +281,40 @@ export default function ProfileSetupScreen({ initialProfile, onComplete }: Profi
         </View>
       </View>
 
-      <GradientCtaButton
-        width={contentWidth}
-        label="MAKE DEBUT"
-        enabled={canSubmit}
-        onPress={() =>
-          onComplete({
-            displayName: toDriverNameCase(trimmedName),
-            raceNumber: normalizedNumber,
-            nameTagAccentColor: teamColor ?? PREVIEW_DEFAULT_COLOR,
-          })
-        }
-      />
+      {/* Bottom CTA area — absolute overlay with fade gradient */}
+      <View style={[styles.ctaContainer, { height: ctaContainerH }]} pointerEvents="box-none">
+        <Svg
+          width={windowW}
+          height={ctaContainerH}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        >
+          <Defs>
+            <SvgLinearGradient id="profileFade" x1="0" y1="1" x2="0" y2="0">
+              <Stop offset="0%" stopColor="#17171C" stopOpacity="1" />
+              <Stop offset="66%" stopColor="#17171C" stopOpacity="1" />
+              <Stop offset="100%" stopColor="#17171C" stopOpacity="0" />
+            </SvgLinearGradient>
+          </Defs>
+          <Rect x={0} y={0} width={windowW} height={ctaContainerH} fill="url(#profileFade)" />
+        </Svg>
+        <View style={[styles.ctaBtnWrap, { bottom: 40 }]}>
+          <GradientCtaButton
+            width={contentWidth}
+            height={ctaHeight}
+            label="MAKE DEBUT"
+            enabled={canSubmit}
+            onPress={() => {
+              setProfile({
+                displayName: toDriverNameCase(trimmedName),
+                raceNumber: normalizedNumber,
+                nameTagAccentColor: teamColor ?? PREVIEW_DEFAULT_COLOR,
+              });
+              navigation.replace('Home');
+            }}
+          />
+        </View>
+      </View>
     </View>
   );
 }
@@ -306,9 +324,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#17171C',
     paddingTop: 100,
-    paddingBottom: 36,
     paddingHorizontal: 28,
     justifyContent: 'space-between',
+  },
+  ctaContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  ctaBtnWrap: {
+    position: 'absolute',
+    left: 28,
+    right: 28,
   },
   title: {
     fontSize: 36,

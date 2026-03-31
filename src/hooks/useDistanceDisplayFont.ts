@@ -16,7 +16,7 @@ type UseDistanceDisplayFontResult = {
 export function useDistanceDisplayFont(windowWidth: number): UseDistanceDisplayFontResult {
   const [sampleWidth, setSampleWidth] = useState(0);
 
-  const distanceLeft = (windowWidth / FRAME_WIDTH) * DISTANCE_LEFT_BASE;
+  const distanceLeft = DISTANCE_LEFT_BASE; // fixed 36pt margin, not scaled
   const availableWidth = windowWidth - distanceLeft * 2;
 
   const fontSize = useMemo(() => {
