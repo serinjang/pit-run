@@ -8,7 +8,7 @@ import { TIRES } from '../constants/tires';
  * BOX BOX 자동 트리거 포함
  */
 export function useRunning() {
-  const { isRunning, isPaused, distKm, tire, boxBoxActive, tick, triggerBoxBox } = useRunStore();
+  const { isRunning, isPaused, tick } = useRunStore();
   const lastTsRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
 
@@ -37,7 +37,8 @@ export function useRunning() {
   }, [isRunning, isPaused]);
 
   function checkBoxBox() {
-    if (boxBoxActive) return;
+    const { distKm, tire, boxBoxActive, pitPhase, triggerBoxBox } = useRunStore.getState();
+    if (boxBoxActive || pitPhase !== 'none') return;
     const threshold = TIRES[tire].boxBoxDistKm;
     if (distKm > 0 && distKm % threshold < 0.005) {
       triggerBoxBox();

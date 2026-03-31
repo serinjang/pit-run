@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SvgButton from '../components/SvgButton';
+import GradientCtaButton from '../components/GradientCtaButton';
 import { getDriverCode } from '../utils/driverCode';
-import Svg, { Defs, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 type UserProfile = {
   displayName: string;
@@ -37,6 +37,7 @@ export default function QualifyingScreen({ profile, onComplete }: QualifyingScre
   const [trialStartedAt, setTrialStartedAt] = useState<number | null>(null);
   const [trialElapsedMs, setTrialElapsedMs] = useState(0);
   const [result, setResult] = useState<QualifyingResult | null>(null);
+  const [isTreadmillMode, setIsTreadmillMode] = useState(false);
 
   const buttonWidth = Math.max(220, width - 56);
   const driverCode = useMemo(() => getDriverCode(profile.displayName), [profile.displayName]);
@@ -151,68 +152,17 @@ export default function QualifyingScreen({ profile, onComplete }: QualifyingScre
           <Text style={styles.phaseDesc}>
             Start qualifying to measure your current level first. We will use this result to tailor your interval plan.
           </Text>
-          <View style={[styles.ctaWrap, { width: buttonWidth, height: CTA_HEIGHT + 78 }]}>
-            <Svg
-              width={buttonWidth + 132}
-              height={248}
-              viewBox={`0 0 ${buttonWidth + 132} 248`}
-              style={styles.ctaGlow}
-            >
-              <Defs>
-                <RadialGradient id="qualifyingCtaGlowCore" cx="50%" cy="78%" r="38%">
-                  <Stop offset="0%" stopColor="rgba(255, 75, 88, 1)" />
-                  <Stop offset="38%" stopColor="rgba(255, 75, 88, 0.98)" />
-                  <Stop offset="100%" stopColor="rgba(255, 75, 88, 0)" />
-                </RadialGradient>
-                <RadialGradient id="qualifyingCtaGlowSpread" cx="50%" cy="74%" r="78%">
-                  <Stop offset="0%" stopColor="rgba(244, 61, 67, 0.9)" />
-                  <Stop offset="52%" stopColor="rgba(244, 61, 67, 0.42)" />
-                  <Stop offset="100%" stopColor="rgba(244, 61, 67, 0)" />
-                </RadialGradient>
-              </Defs>
-              <Rect
-                x="0"
-                y="0"
-                width={buttonWidth + 132}
-                height="248"
-                fill="url(#qualifyingCtaGlowSpread)"
-              />
-              <Rect
-                x={26}
-                y={34}
-                width={buttonWidth + 80}
-                height="196"
-                fill="url(#qualifyingCtaGlowCore)"
-              />
-            </Svg>
-            <Pressable onPress={startWarmup} style={{ width: buttonWidth, height: CTA_HEIGHT }}>
-              <Svg
-                width={buttonWidth}
-                height={CTA_HEIGHT}
-                viewBox={`0 0 ${buttonWidth} ${CTA_HEIGHT}`}
-              >
-                <Defs>
-                  <LinearGradient id="qualifyingCtaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <Stop offset="0%" stopColor="#FF4B58" />
-                    <Stop offset="100%" stopColor="#E02B39" />
-                  </LinearGradient>
-                </Defs>
-                <Rect
-                  x="0.5"
-                  y="0.5"
-                  width={buttonWidth - 1}
-                  height={CTA_HEIGHT - 1}
-                  rx="12"
-                  fill="url(#qualifyingCtaGrad)"
-                  stroke="rgba(255,255,255,0.12)"
-                  strokeWidth="1"
-                />
-              </Svg>
-              <View style={styles.ctaLabelWrap}>
-                <Text style={styles.ctaLabel}>START QUALIFYING</Text>
-              </View>
-            </Pressable>
-          </View>
+          <GradientCtaButton
+            width={buttonWidth}
+            height={CTA_HEIGHT}
+            label="START QUALIFYING"
+            enabled
+            textButtonType="checkbox"
+            textButtonLabel="On a Treadmil?"
+            textButtonChecked={isTreadmillMode}
+            onPressTextButton={() => setIsTreadmillMode((prev) => !prev)}
+            onPress={startWarmup}
+          />
         </View>
       )}
 
@@ -266,20 +216,13 @@ export default function QualifyingScreen({ profile, onComplete }: QualifyingScre
           <Text style={styles.timer}>{fmtStopwatch(result.oneKmMs)}</Text>
           <Text style={styles.resultGrade}>GRADE {result.grade}</Text>
           <Text style={styles.phaseDesc}>{result.nextIntervalHint}</Text>
-          <Pressable onPress={confirmAndContinue} style={{ width: buttonWidth, height: 56 }}>
-            <SvgButton
-              width={buttonWidth}
-              height={56}
-              radius={12}
-              fill="#E03A3E"
-              stroke="#E03A3E"
-              strokeWidth={1}
-              textColor="#FFFFFF"
-              fontFamily="Formula1-Bold"
-              fontSize={16}
-              label="CONTINUE TO READY"
-            />
-          </Pressable>
+          <GradientCtaButton
+            width={buttonWidth}
+            height={56}
+            label="CONTINUE TO READY"
+            enabled
+            onPress={confirmAndContinue}
+          />
         </View>
       )}
     </View>
@@ -499,27 +442,5 @@ const styles = StyleSheet.create({
     fontFamily: 'Formula1-Black',
     fontSize: 30,
     letterSpacing: 1.3,
-  },
-  ctaWrap: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-  },
-  ctaGlow: {
-    position: 'absolute',
-    bottom: -98,
-    left: -66,
-  },
-  ctaLabelWrap: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ctaLabel: {
-    color: '#FFFFFF',
-    fontFamily: 'Formula1-Bold',
-    fontSize: 16,
-    lineHeight: 16,
-    includeFontPadding: false,
   },
 });

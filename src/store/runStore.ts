@@ -30,6 +30,7 @@ interface RunState {
 
   // BOX BOX
   boxBoxActive: boolean;
+  pitPhase: 'none' | 'boxbox' | 'inPit' | 'fullPush';
 
   // 액션
   startRun: () => void;
@@ -42,6 +43,8 @@ interface RunState {
   setTire: (tire: TireType) => void;
   triggerBoxBox: () => void;
   closeBoxBox: () => void;
+  setBoxBoxActive: (active: boolean) => void;
+  setPitPhase: (phase: 'none' | 'boxbox' | 'inPit' | 'fullPush') => void;
 }
 
 const INITIAL_STATE = {
@@ -57,6 +60,7 @@ const INITIAL_STATE = {
   lastRecordDist: 0,
   tyreLog: [{ tire: 'medium' as TireType, startDist: 0, endDist: 0 }],
   boxBoxActive: false,
+  pitPhase: 'none' as const,
 };
 
 export const useRunStore = create<RunState>((set, get) => ({
@@ -83,12 +87,15 @@ export const useRunStore = create<RunState>((set, get) => ({
     }),
 
   tick: (dtMs: number) => {
-    const { isPaused, paceS, distKm, elapsedMs, paceHistory, lastRecordDist, tyreLog } = get();
+    const { isPaused, paceS, distKm, elapsedMs, paceHistory, lastRecordDist, tyreLog, pitPhase } = get();
     if (isPaused) return;
 
     // 페이스 랜덤 워크
-    const drift = (Math.random() - 0.5) * 0.4;
-    const newPace = Math.max(265, Math.min(340, paceS + drift));
+    const isInPit = pitPhase === 'inPit';
+    const drift = (Math.random() - 0.5) * (isInPit ? 0.8 : 0.4);
+    const minPace = isInPit ? 325 : 265;
+    const maxPace = isInPit ? 390 : 340;
+    const newPace = Math.max(minPace, Math.min(maxPace, paceS + drift));
 
     const dKm = dtMs / (newPace * 1000);
     const newDist = distKm + dKm;
@@ -136,6 +143,8 @@ export const useRunStore = create<RunState>((set, get) => ({
     set({ tire, tyreLog: newLog });
   },
 
-  triggerBoxBox: () => set({ boxBoxActive: true }),
+  triggerBoxBox: () => set({ boxBoxActive: true, pitPhase: 'boxbox' }),
   closeBoxBox: () => set({ boxBoxActive: false }),
+  setBoxBoxActive: (active) => set({ boxBoxActive: active }),
+  setPitPhase: (phase) => set({ pitPhase: phase }),
 }));

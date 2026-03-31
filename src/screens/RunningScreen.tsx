@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRunStore } from '../store/runStore';
 import { useDistanceDisplayFont } from '../hooks/useDistanceDisplayFont';
@@ -13,8 +13,6 @@ import StopButton from '../components/StopButton';
 import PlayButton from '../components/PlayButton';
 import BoxBoxSheet from '../components/BoxBoxSheet';
 import NameTag from '../components/NameTag';
-import CheckerFlag from '../components/CheckerFlag';
-import ChinaFlag from '../components/ChinaFlag';
 import CircuitMap, {
   CIRCUIT_VIEWBOX,
   getCircuitPointAtProgress,
@@ -23,12 +21,6 @@ import CircuitMap, {
 
 const FW = 402;
 const FH = 874;
-
-const GLOW = {
-  yellow: 'rgba(252,184,39,0.7)',
-  purple: 'rgba(190,78,255,0.75)',
-  green: 'rgba(89,179,69,0.75)',
-} as const;
 
 const BTN_BG = {
   yellow: '#FFDD94',
@@ -42,26 +34,45 @@ const BTN_ICON = {
   green: '#59B345',
 } as const;
 
-const TAG_BORDER = {
-  yellow: { start: '#FC8E28', end: '#FCB827' },
-  purple: { start: '#AF28C5', end: '#8528C5' },
-  green: { start: '#2CC37F', end: '#59B345' },
-} as const;
-
 const PACE_FIT_SAMPLE = '99\'59"';
 const STAT_VALUE_LINE_HEIGHT = 36;
 const CONTROL_BUTTON_SIZE = 76;
 const CONTROLS_TOP_SPACING = 20;
 const CONTROLS_BOTTOM_SPACING = 32;
-const MIN_GAP_CIRCUIT_TO_CONTROLS = 60;
-const MIN_GAP_TEXT_TO_CIRCUIT = 40;
-const MIN_TOP_GAP_FOR_META = 80;
 const CIRCUIT_STROKE_WIDTH = 5;
 const SHOW_DEBUG_SECTOR_SWITCH = __DEV__;
+const BOXBOX_ALERT_MS = 4000;
+const IN_PIT_DURATION_MS = 8000;
+const FULL_PUSH_ALERT_MS = 4000;
+const IN_PIT_PLAY_BUTTON = require('../../assets/control-buttons/inpit-play.png');
+const IN_PIT_STOP_BUTTON = require('../../assets/control-buttons/inpit-stop.png');
+const IN_PIT_PAUSE_BUTTON = require('../../assets/control-buttons/inpit-pause.png');
+
+const TOP_THEME_BY_CIRCUIT: Record<string, { line: string; text: string }> = {
+  SHANGHAI: { line: '#E03A3E', text: '#E03A3E' },
+  'LAS VEGAS': { line: '#3F5CFF', text: '#657DFF' },
+  SUZUKA: { line: '#FFFFFF', text: '#FFFFFF' },
+  MONACO: { line: '#E03A3E', text: '#E03A3E' },
+  HUNGARY: { line: '#59B345', text: '#59B345' },
+  HUNGARORING: { line: '#59B345', text: '#59B345' },
+  'MARINA BAY': { line: '#E03A3E', text: '#E03A3E' },
+  MONZA: { line: '#59B345', text: '#59B345' },
+  BAKU: { line: '#04A6CB', text: '#04A6CB' },
+  'ALBERT PARK': { line: '#3F5CFF', text: '#657DFF' },
+  SILVERSTONE: { line: '#3F5CFF', text: '#657DFF' },
+  SPA: { line: '#FCB827', text: '#FCB827' },
+};
 
 type RunningScreenProps = {
   onStop: () => void;
-  circuit?: { displayName: string; distanceKm: number };
+  circuit?: {
+    displayName: string;
+    distanceKm: number;
+    trackPath?: string;
+    flagAsset?: any;
+    startMarker?: { xRatio: number; yRatio: number; angleDeg: number };
+    checkerFlag?: { xRatio: number; yRatio: number; angleDeg: number };
+  };
   profile?: { displayName: string; raceNumber?: string; nameTagAccentColor: string };
   records?: { bestEverSecPerKm: number; todayBestSecPerKm: number };
   onPaceSample?: (paceSecPerKm: number) => void;
@@ -87,15 +98,18 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
     prog,
     isPaused,
     boxBoxActive,
+    pitPhase,
     pauseRun,
     resumeRun,
     stopRun,
     triggerBoxBox,
     startRun,
     closeBoxBox,
-    setTire,
+    setBoxBoxActive,
+    setPitPhase,
     setSector,
   } = useRunStore();
+  const pitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useRunning();
 
@@ -104,8 +118,21 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
   }, [startRun]);
 
   const cfg = COLORS.sector[sector];
+  const isInPitTheme = pitPhase === 'inPit';
+  const displayTheme = isInPitTheme
+    ? { start: '#FFFFFF', end: '#CBCBCC' }
+    : { start: cfg.start, end: cfg.end };
   const circuitLabel = circuit?.displayName ?? 'Shanghai';
   const circuitKm = circuit?.distanceKm ?? CIRCUIT_KM;
+  const circuitPath = circuit?.trackPath;
+  const topTheme =
+    isInPitTheme
+      ? { line: '#FFFFFF', text: '#FFFFFF' }
+      : TOP_THEME_BY_CIRCUIT[circuitLabel.toUpperCase()] ?? { line: '#E03A3E', text: '#E03A3E' };
+  const raceStatusLabel = isInPitTheme ? 'IN PIT' : isPaused ? 'PAUSED' : 'RACING';
+  const topInfoTop = insets.top + t(15);
+  const topLineTop = insets.top + t(49);
+  const topLineBottom = topLineTop + 4;
   const nameTagLabel = getDriverCode(profile?.displayName ?? '');
   const boxBoxDriverName = getDriverDisplayName(profile?.displayName ?? '');
   const boxBoxTeamColor = profile?.nameTagAccentColor ?? '#E03A3E';
@@ -123,14 +150,11 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
   } = useDistanceDisplayFont(initialW);
   const distStartX = (DIST_LEFT + DIST_RIGHT) / 2 - distRenderWidth / 2;
   const distEndX = distStartX + distRenderWidth;
-  const distAnchorLeft = distRenderWidth > 0 ? distStartX : DIST_LEFT;
 
-  const baseDistTop = t(174);
-  const baseMetaTop = baseDistTop - 20;
-  const baseStatsLabelTop = baseDistTop + distLineHeight + 28;
+  const baseStatsLabelGap = 28;
+  const baseValueGap = 8;
+  const baseCircuitGap = 40;
   const statsLabelHeight = 13;
-  const baseStatsValueTop = baseStatsLabelTop + statsLabelHeight + 8;
-  const baseStatsValueBottom = baseStatsValueTop + STAT_VALUE_LINE_HEIGHT;
 
   const paceValue = fmtPace(paceS);
   const [paceMaxWidth, setPaceMaxWidth] = useState<number>(0);
@@ -145,38 +169,29 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
   const baseCircuitH = t(180);
   const controlsBottomPadding = insets.bottom + CONTROLS_BOTTOM_SPACING;
   const controlsTop = windowH - (controlsBottomPadding + CONTROLS_TOP_SPACING + CONTROL_BUTTON_SIZE);
-  const statsValueBottomMax =
-    controlsTop - (MIN_GAP_CIRCUIT_TO_CONTROLS + MIN_GAP_TEXT_TO_CIRCUIT + baseCircuitH);
-  const requiredUpwardShift = Math.max(0, baseStatsValueBottom - statsValueBottomMax);
-  const maxUpwardShift = Math.max(0, baseMetaTop - MIN_TOP_GAP_FOR_META);
-  const upwardShift = Math.min(requiredUpwardShift, maxUpwardShift);
-
-  const distTop = baseDistTop - upwardShift;
-  const metaTop = baseMetaTop - upwardShift;
-  const statsLabelTop = baseStatsLabelTop - upwardShift;
-  const statsValueTop = baseStatsValueTop - upwardShift;
-  const statsValueBottom = baseStatsValueBottom - upwardShift;
-
-  // Fallback for short screens: shrink circuit to preserve vertical spacing constraints.
-  const availableCircuitHeight =
-    controlsTop - MIN_GAP_CIRCUIT_TO_CONTROLS - (statsValueBottom + MIN_GAP_TEXT_TO_CIRCUIT);
-  const circuitScaleFallback =
-    baseCircuitH > 0 ? Math.min(1, Math.max(0, availableCircuitHeight / baseCircuitH)) : 1;
-  const circuitW = baseCircuitW * circuitScaleFallback;
-  const circuitH = baseCircuitH * circuitScaleFallback;
+  const blockStartTop = topLineBottom + 10;
+  const blockEndBottom = controlsTop - 10;
+  const availableBlockHeight = Math.max(0, blockEndBottom - blockStartTop);
+  const fixedBlockHeight =
+    distLineHeight + baseStatsLabelGap + statsLabelHeight + baseValueGap + STAT_VALUE_LINE_HEIGHT + baseCircuitGap;
+  const circuitHeightBudget = Math.max(0, availableBlockHeight - fixedBlockHeight);
+  const circuitH = Math.min(baseCircuitH, circuitHeightBudget);
+  const circuitScaleFallback = baseCircuitH > 0 ? Math.min(1, Math.max(0, circuitH / baseCircuitH)) : 1;
+  const circuitW = Math.min(baseCircuitW * circuitScaleFallback, distFrameWidth);
+  const blockHeight = fixedBlockHeight + circuitH;
+  const blockTop = blockStartTop + Math.max(0, (availableBlockHeight - blockHeight) / 2);
+  const distTop = blockTop;
+  const statsLabelTop = distTop + distLineHeight + baseStatsLabelGap;
+  const statsValueTop = statsLabelTop + statsLabelHeight + baseValueGap;
+  const statsValueBottom = statsValueTop + STAT_VALUE_LINE_HEIGHT;
   const circuitLeft = DIST_LEFT + (distFrameWidth - circuitW) / 2;
-
-  const circuitTopMin = statsValueBottom + MIN_GAP_TEXT_TO_CIRCUIT;
-  const circuitTopMax = controlsTop - MIN_GAP_CIRCUIT_TO_CONTROLS - circuitH;
-  const desiredCircuitTop = (circuitTopMin + circuitTopMax) / 2;
-  const circuitTop = Math.min(Math.max(desiredCircuitTop, circuitTopMin), circuitTopMax);
+  const circuitTop = statsValueBottom + baseCircuitGap;
 
   const circuitScale = Math.min(circuitW / CIRCUIT_VIEWBOX.width, circuitH / CIRCUIT_VIEWBOX.height);
   const circuitOffsetX = (circuitW - CIRCUIT_VIEWBOX.width * circuitScale) / 2;
   const circuitOffsetY = (circuitH - CIRCUIT_VIEWBOX.height * circuitScale) / 2;
-  const circuitPoint = getCircuitPointAtProgress(prog);
-  const startPoint = getCircuitPointAtProgress(0);
-  const tangent = getCircuitTangentAtProgress(prog);
+  const circuitPoint = getCircuitPointAtProgress(prog, circuitPath);
+  const tangent = getCircuitTangentAtProgress(prog, circuitPath);
 
   // Incoming side (where the drawn line reaches the tag)
   // is opposite to the forward tangent direction.
@@ -187,34 +202,69 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
   const gradientX2 = 0.5 - 0.5 * touchNx;
   const gradientY2 = 0.5 - 0.5 * touchNy;
 
-  // Anchor checker by its tilted rectangle (inside SVG) to the circuit start outline.
-  const checkerLeftRectAnchorX = 0;
-  const checkerAnchorY = 7.4;
-  const checkerOverlap = 0.8;
-  const startPointScreenX = circuitLeft + circuitOffsetX + startPoint.x * circuitScale;
-  const startPointScreenY = circuitTop + circuitOffsetY + startPoint.y * circuitScale;
-  const startPointLeftEdgeX = startPointScreenX - (CIRCUIT_STROKE_WIDTH * circuitScale) / 2;
-
   const nameTagW = 47;
   const nameTagH = 26;
   const nameTagLeft = circuitLeft + circuitOffsetX + circuitPoint.x * circuitScale - nameTagW / 2;
   const nameTagTop = circuitTop + circuitOffsetY + circuitPoint.y * circuitScale - nameTagH / 2;
 
-  const checkerLeft = startPointLeftEdgeX - checkerLeftRectAnchorX + checkerOverlap;
-  const checkerTop = circuitTop + circuitOffsetY + startPoint.y * circuitScale - checkerAnchorY;
+  const controlBgColor = BTN_BG[sector];
+  const controlIconColor = BTN_ICON[sector];
+  const statusTextColor = isInPitTheme || isPaused ? '#FFFFFF' : topTheme.text;
+  const statusTextOpacity = isInPitTheme || isPaused ? 0.7 : 1;
 
   useEffect(() => {
     onPaceSample?.(paceS);
   }, [paceS, onPaceSample]);
 
+  useEffect(() => {
+    if (pitTimerRef.current) {
+      clearTimeout(pitTimerRef.current);
+      pitTimerRef.current = null;
+    }
+
+    if (pitPhase === 'boxbox') {
+      pitTimerRef.current = setTimeout(() => {
+        closeBoxBox();
+        setPitPhase('inPit');
+      }, BOXBOX_ALERT_MS);
+    } else if (pitPhase === 'inPit') {
+      pitTimerRef.current = setTimeout(() => {
+        setPitPhase('fullPush');
+        setBoxBoxActive(true);
+      }, IN_PIT_DURATION_MS);
+    } else if (pitPhase === 'fullPush') {
+      pitTimerRef.current = setTimeout(() => {
+        closeBoxBox();
+        setPitPhase('none');
+      }, FULL_PUSH_ALERT_MS);
+    }
+
+    return () => {
+      if (pitTimerRef.current) {
+        clearTimeout(pitTimerRef.current);
+        pitTimerRef.current = null;
+      }
+    };
+  }, [pitPhase, closeBoxBox, setBoxBoxActive, setPitPhase]);
+
   return (
     <View style={st.container}>
-      <View style={[st.circuitMetaRow, { left: distAnchorLeft + 2, top: metaTop, gap: 6 }]}>
-        <ChinaFlag />
-        <Text style={[st.circuitName, { fontSize: 17, lineHeight: 17 }]}>
-          {circuitLabel} {circuitKm.toFixed(2)}km
+      <View style={[st.topInfoRow, { top: topInfoTop }]}>
+        <View style={st.topInfoLeft}>
+          {circuit?.flagAsset ? (
+            <View style={st.flagWrap}>
+              <Image source={circuit.flagAsset} style={st.flagImage} resizeMode="cover" />
+            </View>
+          ) : null}
+          <Text style={[st.topTrackText, { color: topTheme.text }]}>
+            {circuitLabel.toUpperCase()} ({circuitKm.toFixed(2)}km)
+          </Text>
+        </View>
+        <Text style={[st.topStatusText, { color: statusTextColor, opacity: statusTextOpacity }]}>
+          {raceStatusLabel}
         </Text>
       </View>
+      <View style={[st.topDivider, { top: topLineTop, backgroundColor: topTheme.line }]} />
 
       <View style={[st.distCenterWrap, { top: distTop, left: DIST_LEFT, right: DIST_LEFT }]}> 
         <Text
@@ -225,7 +275,7 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
             const w = e.nativeEvent.layout.width;
             if (w > 0 && Math.abs(w - distRenderWidth) > 0.5) setDistRenderWidth(w);
           }}
-          style={[st.dist, { color: cfg.start, fontSize: distFontSize, lineHeight: distLineHeight }]}
+          style={[st.dist, { color: displayTheme.start, fontSize: distFontSize, lineHeight: distLineHeight }]}
         >
           {fmtDist(distKm)}
         </Text>
@@ -304,20 +354,21 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
           height: circuitH,
         }}
       >
-        <CircuitMap progress={prog} startColor={cfg.start} endColor={cfg.end} />
-      </View>
-
-
-
-      <View style={{ position: 'absolute', left: checkerLeft, top: checkerTop }}>
-        <CheckerFlag color={cfg.start} />
+        <CircuitMap
+          progress={prog}
+          startColor={displayTheme.start}
+          endColor={displayTheme.end}
+          path={circuitPath}
+          accentColor={displayTheme.start}
+          overlays={circuit?.overlays}
+        />
       </View>
 
       <View style={{ position: 'absolute', left: nameTagLeft, top: nameTagTop }}>
         <NameTag
           label={nameTagLabel}
-          colorStart={cfg.end}
-          colorEnd={cfg.start}
+          colorStart={displayTheme.end}
+          colorEnd={displayTheme.start}
           accentColor={profile?.nameTagAccentColor ?? '#E03A3E'}
           gradientX1={gradientX1}
           gradientY1={gradientY1}
@@ -364,27 +415,37 @@ export default function RunningScreen({ onStop, circuit, profile, onPaceSample }
                 onStop();
               }}
             >
-              <StopButton color={BTN_ICON[sector]} bgColor={BTN_BG[sector]} size={CONTROL_BUTTON_SIZE} sector={sector} />
+              {isInPitTheme ? (
+                <Image source={IN_PIT_STOP_BUTTON} style={st.inPitControlButton} resizeMode="contain" />
+              ) : (
+                <StopButton color={controlIconColor} bgColor={controlBgColor} size={CONTROL_BUTTON_SIZE} sector={sector} />
+              )}
             </Pressable>
             <Pressable onPress={resumeRun}>
-              <PlayButton color={BTN_ICON[sector]} bgColor={BTN_BG[sector]} size={CONTROL_BUTTON_SIZE} sector={sector} />
+              {isInPitTheme ? (
+                <Image source={IN_PIT_PLAY_BUTTON} style={st.inPitControlButton} resizeMode="contain" />
+              ) : (
+                <PlayButton color={controlIconColor} bgColor={controlBgColor} size={CONTROL_BUTTON_SIZE} sector={sector} />
+              )}
             </Pressable>
           </>
         ) : (
           <Pressable onPress={pauseRun}>
-            <PauseButton color={BTN_ICON[sector]} bgColor={BTN_BG[sector]} size={CONTROL_BUTTON_SIZE} sector={sector} />
+            {isInPitTheme ? (
+              <Image source={IN_PIT_PAUSE_BUTTON} style={st.inPitControlButton} resizeMode="contain" />
+            ) : (
+              <PauseButton color={controlIconColor} bgColor={controlBgColor} size={CONTROL_BUTTON_SIZE} sector={sector} />
+            )}
           </Pressable>
         )}
       </View>
 
       <BoxBoxSheet
         visible={boxBoxActive}
+        mode={pitPhase === 'fullPush' ? 'fullPush' : 'boxbox'}
         driverName={boxBoxDriverName}
         teamColor={boxBoxTeamColor}
         onClose={closeBoxBox}
-        onSelectTire={(tire) => {
-          setTire(tire);
-        }}
       />
     </View>
   );
@@ -395,16 +456,48 @@ const st = StyleSheet.create({
     flex: 1,
     backgroundColor: '#17171C',
   },
-  circuitMetaRow: {
+  topInfoRow: {
     position: 'absolute',
+    left: 22,
+    right: 21,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  circuitName: {
+  topInfoLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  flagWrap: {
+    width: 22,
+    height: 14,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  flagImage: {
+    width: '100%',
+    height: '100%',
+  },
+  topTrackText: {
     fontFamily: 'Formula1-Regular',
-    color: 'rgba(255,255,255,0.5)',
-    letterSpacing: -0.65,
+    fontSize: 17,
+    lineHeight: 20,
+    letterSpacing: -0.34,
     includeFontPadding: false,
+  },
+  topStatusText: {
+    fontFamily: 'Formula1-Bold',
+    fontSize: 17,
+    lineHeight: 20,
+    letterSpacing: -0.34,
+    includeFontPadding: false,
+  },
+  topDivider: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 4,
   },
   distCenterWrap: {
     position: 'absolute',
@@ -477,5 +570,12 @@ const st = StyleSheet.create({
     fontSize: 11,
     lineHeight: 12,
     includeFontPadding: false,
+  },
+  inPitControlButton: {
+    width: CONTROL_BUTTON_SIZE,
+    height: CONTROL_BUTTON_SIZE,
+  },
+  startMarkerRect: {
+    position: 'absolute',
   },
 });

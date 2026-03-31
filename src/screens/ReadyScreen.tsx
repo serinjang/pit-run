@@ -2,6 +2,7 @@ import React from 'react';
 import { Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { CircuitDefinition } from '../config/circuits';
 import SvgButton from '../components/SvgButton';
+import GradientCtaButton from '../components/GradientCtaButton';
 
 type UserProfile = {
   displayName: string;
@@ -99,20 +100,14 @@ export default function ReadyScreen({
         </View>
       </View>
 
-      <Pressable onPress={onStart} style={styles.startButtonPress}>
-        <SvgButton
-          width={START_W}
-          height={START_H}
-          radius={14}
-          fill="#E03A3E"
-          stroke="#E03A3E"
-          strokeWidth={1}
-          textColor="#FFFFFF"
-          fontFamily="Formula1-Bold"
-          fontSize={17}
-          label="러닝 기록 시작"
-        />
-      </Pressable>
+      <GradientCtaButton
+        width={START_W}
+        height={START_H}
+        label="러닝 기록 시작"
+        enabled
+        onPress={onStart}
+        style={styles.startButtonPress}
+      />
     </View>
   );
 }

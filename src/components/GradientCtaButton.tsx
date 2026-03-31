@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
-import { Pressable, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
-import Svg, { Defs, RadialGradient, Rect, Stop, Text as SvgText } from 'react-native-svg';
+import { Animated, Easing, Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import Svg, { Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 type GradientCtaButtonProps = {
   width: number;
@@ -9,6 +9,10 @@ type GradientCtaButtonProps = {
   onPress: () => void;
   height?: number;
   style?: StyleProp<ViewStyle>;
+  textButtonType?: 'none' | 'text' | 'checkbox';
+  textButtonLabel?: string;
+  textButtonChecked?: boolean;
+  onPressTextButton?: () => void;
 };
 
 const GLOW_EXTRA_WIDTH = 160;
@@ -22,44 +26,58 @@ export default function GradientCtaButton({
   onPress,
   height = 58,
   style,
+  textButtonType = 'none',
+  textButtonLabel = 'On a Treadmil?',
+  textButtonChecked = false,
+  onPressTextButton,
 }: GradientCtaButtonProps) {
   const gradientId = useRef(`gradientCta_${Math.random().toString(36).slice(2, 9)}`).current;
   const glowId = useRef(`gradientCtaGlow_${Math.random().toString(36).slice(2, 9)}`).current;
+  const pressAnim = useRef(new Animated.Value(0)).current;
+  const showTextButton = textButtonType !== 'none';
+  const showCheckbox = textButtonType === 'checkbox';
+  const buttonScale = pressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0.985],
+  });
+
+  const animatePress = (pressed: boolean) => {
+    Animated.timing(pressAnim, {
+      toValue: pressed ? 1 : 0,
+      duration: pressed ? 95 : 150,
+      easing: pressed ? Easing.out(Easing.quad) : Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  };
 
   return (
     <View style={[styles.wrap, { width }, style]}>
-      <Pressable disabled={!enabled} onPress={onPress} style={[styles.press, { height }]}>
-        <Svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-          {enabled && (
-            <Defs>
-              <RadialGradient id={gradientId} cx="50%" cy="50%" r="72%">
-                <Stop offset="27%" stopColor="#E03A3E" />
-                <Stop offset="100%" stopColor="#FF4D51" />
-              </RadialGradient>
-            </Defs>
+      {showTextButton && (
+        <Pressable
+          onPress={onPressTextButton}
+          style={styles.textButtonRow}
+          disabled={!onPressTextButton}
+          hitSlop={8}
+        >
+          {showCheckbox && (
+            <View style={[styles.checkboxBase, textButtonChecked ? styles.checkboxChecked : null]}>
+              {textButtonChecked && (
+                <Svg width={8} height={5} viewBox="0 0 8 5">
+                  <Path
+                    d="M1 2.5L3.2 4L7 1"
+                    stroke="#FFFFFF"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="none"
+                  />
+                </Svg>
+              )}
+            </View>
           )}
-          <Rect
-            x="0"
-            y="0"
-            width={width}
-            height={height}
-            rx="12"
-            fill={enabled ? `url(#${gradientId})` : 'rgba(224,58,62,0.2)'}
-          />
-          <SvgText
-            x="50%"
-            y="50%"
-            fill={enabled ? '#FFFFFF' : 'rgba(255,255,255,0.2)'}
-            fontSize={22}
-            fontFamily="Formula1-Bold"
-            fontWeight="700"
-            textAnchor="middle"
-            alignmentBaseline="middle"
-          >
-            {label}
-          </SvgText>
-        </Svg>
-      </Pressable>
+          <Text style={styles.textButtonLabel}>{textButtonLabel}</Text>
+        </Pressable>
+      )}
 
       {enabled && (
         <Svg
@@ -78,6 +96,52 @@ export default function GradientCtaButton({
           <Rect x="0" y="0" width={width + GLOW_EXTRA_WIDTH} height={GLOW_HEIGHT} fill={`url(#${glowId})`} opacity="0.3" />
         </Svg>
       )}
+
+      <Animated.View
+        style={[
+          styles.pressAnimWrap,
+          {
+            transform: [{ scale: buttonScale }],
+          },
+        ]}
+      >
+        <Pressable
+          disabled={!enabled}
+          onPress={onPress}
+          onPressIn={() => enabled && animatePress(true)}
+          onPressOut={() => enabled && animatePress(false)}
+          style={[styles.press, { height }]}
+        >
+          <Svg
+            width={width}
+            height={height}
+            viewBox={`0 0 ${width} ${height}`}
+            style={StyleSheet.absoluteFill}
+          >
+            <Defs>
+              <RadialGradient id={gradientId} cx="50%" cy="50%" r="72%">
+                <Stop offset="27%" stopColor="#E03A3E" />
+                <Stop offset="100%" stopColor="#FF4D51" />
+              </RadialGradient>
+            </Defs>
+            <Rect
+              x="0"
+              y="0"
+              width={width}
+              height={height}
+              rx="12"
+              fill={`url(#${gradientId})`}
+              fillOpacity={enabled ? 1 : 0.3}
+            />
+          </Svg>
+          <Text
+            style={[styles.btnLabel, { opacity: enabled ? 1 : 0.3 }]}
+            allowFontScaling={false}
+          >
+            {label}
+          </Text>
+        </Pressable>
+      </Animated.View>
     </View>
   );
 }
@@ -86,20 +150,60 @@ const styles = StyleSheet.create({
   wrap: {
     position: 'relative',
   },
+  textButtonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 14,
+  },
+  textButtonLabel: {
+    color: '#FFFFFF',
+    opacity: 0.5,
+    fontFamily: 'Formula1-Regular',
+    fontSize: 20,
+    lineHeight: 24,
+    letterSpacing: 1,
+    includeFontPadding: false,
+  },
+  checkboxBase: {
+    width: 16,
+    height: 16,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: '#E03A3E',
+  },
   press: {
     width: '100%',
     position: 'relative',
-    zIndex: 2,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnLabel: {
+    color: '#FFFFFF',
+    fontFamily: 'Formula1-Bold',
+    fontSize: 22,
+    includeFontPadding: false,
+    letterSpacing: 0.5,
+    textShadowColor: '#FFFFFF',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 1,
+  },
+  pressAnimWrap: {
+    width: '100%',
   },
   glow: {
     position: 'absolute',
     bottom: GLOW_BOTTOM_OFFSET,
     left: -80,
-    zIndex: 1,
   },
 });

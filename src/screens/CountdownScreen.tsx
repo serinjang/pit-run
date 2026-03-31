@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Asset } from 'expo-asset';
 import { useDistanceDisplayFont } from '../hooks/useDistanceDisplayFont';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
+import TextChevronButton from '../components/TextChevronButton';
 
 const COUNTDOWN_PAGE_MS = 1000;
 const DISSOLVE_MS = 120;
@@ -218,7 +218,8 @@ export default function CountdownScreen({ onFinish }: CountdownScreenProps) {
         </>
       )}
       {count > 0 && (
-        <Pressable
+        <TextChevronButton
+          label="Skip"
           onPress={finishCountdown}
           style={[
             styles.skipButton,
@@ -226,30 +227,7 @@ export default function CountdownScreen({ onFinish }: CountdownScreenProps) {
               bottom: Math.max((screenHeight * SKIP_BOTTOM_OFFSET) / DESIGN_SCREEN_HEIGHT, insets.bottom + 16),
             },
           ]}
-          hitSlop={12}
-        >
-          <Text style={styles.skipLabel}>Skip</Text>
-          <Svg width={20} height={13} viewBox="0 0 20 13" style={styles.skipChevronIcon}>
-            <Path
-              d="M1.5 1.5L7 6.5L1.5 11.5"
-              stroke="#FFFFFF"
-              strokeOpacity={0.5}
-              strokeWidth={3}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-            />
-            <Path
-              d="M11.5 1.5L17 6.5L11.5 11.5"
-              stroke="#FFFFFF"
-              strokeOpacity={0.5}
-              strokeWidth={3}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-            />
-          </Svg>
-        </Pressable>
+        />
       )}
     </View>
   );
@@ -286,22 +264,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
     zIndex: 50,
     elevation: 50,
-  },
-  skipLabel: {
-    color: '#FFFFFF',
-    opacity: 0.5,
-    fontFamily: 'Formula1-Regular',
-    fontSize: 24,
-    lineHeight: 29,
-    letterSpacing: -0.48,
-    includeFontPadding: false,
-  },
-  skipChevronIcon: {
-    marginLeft: 4,
   },
 });
