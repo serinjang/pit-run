@@ -38,7 +38,7 @@ const styles = StyleSheet.create({
   btn: {
     position: 'absolute',
     left: 28,
-    zIndex: 10,
+    zIndex: 1001,
     padding: 4,
   },
 });
