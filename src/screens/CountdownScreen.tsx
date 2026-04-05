@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Asset } from 'expo-asset';
 import { useDistanceDisplayFont } from '../hooks/useDistanceDisplayFont';
@@ -60,7 +60,7 @@ const COUNTDOWN_IMAGE_MODULES = [
 ];
 
 export default function CountdownScreen({ navigation }: CountdownScreenProps) {
-  const onFinish = () => navigation.replace('Running');
+  const onFinish = useCallback(() => navigation.replace('Running'), [navigation]);
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [count, setCount] = useState<CountdownValue>(5);
@@ -209,6 +209,15 @@ export default function CountdownScreen({ navigation }: CountdownScreenProps) {
       </Text>
       {assetsReady && (
         <>
+          {/* Pre-render all images off-screen to warm GPU texture cache before transitions */}
+          <View style={styles.gpuPrewarm} pointerEvents="none">
+            {([5, 4, 3, 2, 1, 0] as CountdownValue[]).map((n) => (
+              <React.Fragment key={n}>
+                <Image source={NUMBER_SOURCE[n]} style={styles.gpuPrewarmImg} />
+                <Image source={SIGNAL_SOURCE[n]} style={styles.gpuPrewarmImg} />
+              </React.Fragment>
+            ))}
+          </View>
           {currentSignalLayer}
           {previousCount !== null && renderNumberLayer(previousCount, previousOpacity)}
           {renderNumberLayer(count, dissolveOpacity)}
@@ -258,5 +267,15 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 50,
     elevation: 50,
+  },
+  gpuPrewarm: {
+    position: 'absolute',
+    left: -9999,
+    top: -9999,
+    opacity: 0,
+  },
+  gpuPrewarmImg: {
+    width: 1,
+    height: 1,
   },
 });

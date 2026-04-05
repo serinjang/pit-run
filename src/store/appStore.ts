@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import type { TireType } from '../constants/colors';
-import { DEFAULT_CIRCUIT_ID } from '../config/circuits';
 
 export type QualifyingResult = {
   warmupMinutes: number;
@@ -31,6 +30,15 @@ interface AppState {
 
   paceRecords: { bestEver: number; todayBest: number };
   updatePaceRecord: (pace: number) => void;
+
+  activityDates: string[];
+  recordActivity: () => void;
+
+  totalDistanceKm: number;
+  addDistance: (km: number) => void;
+
+  notificationsEnabled: boolean;
+  setNotificationsEnabled: (enabled: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -56,11 +64,24 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   updatePaceRecord: (pace) => {
     const prev = get().paceRecords;
-    set({
-      paceRecords: {
-        bestEver: Math.min(prev.bestEver, pace),
-        todayBest: Math.min(prev.todayBest, pace),
-      },
-    });
+    const bestEver = Math.min(prev.bestEver, pace);
+    const todayBest = Math.min(prev.todayBest, pace);
+    if (bestEver === prev.bestEver && todayBest === prev.todayBest) return;
+    set({ paceRecords: { bestEver, todayBest } });
   },
+
+  activityDates: [],
+  recordActivity: () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const prev = get().activityDates;
+    if (!prev.includes(today)) {
+      set({ activityDates: [...prev, today] });
+    }
+  },
+
+  totalDistanceKm: 0,
+  addDistance: (km) => set((state) => ({ totalDistanceKm: state.totalDistanceKm + km })),
+
+  notificationsEnabled: true,
+  setNotificationsEnabled: (enabled) => set({ notificationsEnabled: enabled }),
 }));

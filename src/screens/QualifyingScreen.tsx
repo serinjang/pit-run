@@ -22,11 +22,11 @@ import GradientCtaButton from '../components/GradientCtaButton';
 import TextChevronButton from '../components/TextChevronButton';
 import BackButton from '../components/BackButton';
 import { useAppStore } from '../store/appStore';
+import type { QualifyingResult } from '../store/appStore';
 import type { QualifyingScreenProps } from '../navigation/types';
 
-// Figma design reference size
+// Figma design reference size (horizontal only — vertical uses fixed values)
 const FW = 402;
-const FH = 874;
 
 const WARMUP_ICON = require('../../assets/icons/qualifying-warmup-5ce716.png');
 const RUN_ICON = require('../../assets/icons/qualifying-run-756777.png');
@@ -37,17 +37,8 @@ const ACCENT = '#E03A3E';
 
 type Phase = 'intro' | 'warmup' | 'qualifying' | 'retireConfirm';
 
-export type QualifyingResult = {
-  warmupMinutes: number;
-  oneKmMs: number;
-  paceSecPerKm: number;
-  grade: 'A' | 'B' | 'C' | 'D';
-  nextIntervalHint: string;
-};
-
 export default function QualifyingScreen({ navigation }: QualifyingScreenProps) {
   const { setQualifyingResult } = useAppStore();
-  const trialDistKm = 0;
   const { width: windowW } = useWindowDimensions();
   const safeTop = useSafeTop();
   const sx = windowW / FW; // used only for fill items (timerFontSize)
@@ -274,12 +265,12 @@ export default function QualifyingScreen({ navigation }: QualifyingScreenProps) 
             >
               <Svg width={barFillW} height={barH}>
                 <Defs>
-                  <SvgLinearGradient id="barGrad" x1="0" y1="0" x2="1" y2="0">
+                  <SvgLinearGradient id="qualBarGrad" x1="0" y1="0" x2="1" y2="0">
                     <Stop offset="0%" stopColor={ACCENT} />
                     <Stop offset="100%" stopColor="#E03A8A" />
                   </SvgLinearGradient>
                 </Defs>
-                <Rect x={0} y={0} width={barFillW} height={barH} rx={barH / 2} fill="url(#barGrad)" />
+                <Rect x={0} y={0} width={barFillW} height={barH} rx={barH / 2} fill="url(#qualBarGrad)" />
               </Svg>
             </View>
           )}
@@ -337,7 +328,7 @@ function IntroScreen({ windowW, insetsTop, onStart }: IntroScreenProps) {
   const hPad = 28;
   const ctaContainerH = 164;
   const ctaWidth = windowW - 56; // fill: 28pt margins × 2
-  const ctaHeight = 54;
+  const ctaHeight = 58;
 
   return (
     <View style={[st.container, { paddingHorizontal: hPad }]}>

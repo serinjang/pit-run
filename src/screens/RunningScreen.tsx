@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSafeTop } from '../hooks/useSafeTop';
@@ -20,6 +20,7 @@ import CircuitMap, {
   getCircuitTangentAtProgress,
 } from '../components/CircuitMap';
 import { CIRCUITS } from '../config/circuits';
+import { getCircuitTheme } from '../config/circuitThemes';
 import { useAppStore } from '../store/appStore';
 import type { RunningScreenProps as NavRunningScreenProps } from '../navigation/types';
 
@@ -43,7 +44,6 @@ const STAT_VALUE_LINE_HEIGHT = 36;
 const CONTROL_BUTTON_SIZE = 76;
 const CONTROLS_TOP_SPACING = 20;
 const CONTROLS_BOTTOM_SPACING = 32;
-const CIRCUIT_STROKE_WIDTH = 5;
 const SHOW_DEBUG_SECTOR_SWITCH = __DEV__;
 const SHOW_DEBUG_CIRCUIT_SWITCH = __DEV__;
 const BOXBOX_ALERT_MS = 4000;
@@ -53,27 +53,13 @@ const IN_PIT_PLAY_BUTTON = require('../../assets/control-buttons/inpit-play.png'
 const IN_PIT_STOP_BUTTON = require('../../assets/control-buttons/inpit-stop.png');
 const IN_PIT_PAUSE_BUTTON = require('../../assets/control-buttons/inpit-pause.png');
 
-const TOP_THEME_BY_CIRCUIT: Record<string, { line: string; text: string }> = {
-  SHANGHAI: { line: '#E03A3E', text: '#E03A3E' },
-  'LAS VEGAS': { line: '#3F5CFF', text: '#657DFF' },
-  SUZUKA: { line: '#FFFFFF', text: '#FFFFFF' },
-  MONACO: { line: '#E03A3E', text: '#E03A3E' },
-  HUNGARY: { line: '#59B345', text: '#59B345' },
-  HUNGARORING: { line: '#59B345', text: '#59B345' },
-  'MARINA BAY': { line: '#E03A3E', text: '#E03A3E' },
-  MONZA: { line: '#59B345', text: '#59B345' },
-  BAKU: { line: '#04A6CB', text: '#04A6CB' },
-  'ALBERT PARK': { line: '#3F5CFF', text: '#657DFF' },
-  SILVERSTONE: { line: '#3F5CFF', text: '#657DFF' },
-  SPA: { line: '#FCB827', text: '#FCB827' },
-};
 
 export default function RunningScreen({ navigation }: NavRunningScreenProps) {
   const { selectedCircuitId, profile: storeProfile, updatePaceRecord } = useAppStore();
   const circuit = CIRCUITS.find((c) => c.id === selectedCircuitId) ?? CIRCUITS[0];
   const profile = storeProfile;
-  const onStop = () => navigation.navigate('Home');
-  const onPaceSample = (pace: number) => updatePaceRecord(pace);
+  const onStop = useCallback(() => navigation.replace('Result'), [navigation]);
+  const onPaceSample = useCallback((pace: number) => updatePaceRecord(pace), [updatePaceRecord]);
   const { width: windowW, height: windowH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const safeTop = useSafeTop();
@@ -129,7 +115,7 @@ export default function RunningScreen({ navigation }: NavRunningScreenProps) {
   const topTheme =
     isInPitTheme
       ? { line: '#FFFFFF', text: '#FFFFFF' }
-      : TOP_THEME_BY_CIRCUIT[circuitLabel.toUpperCase()] ?? { line: '#E03A3E', text: '#E03A3E' };
+      : getCircuitTheme(circuitLabel);
   const raceStatusLabel = isInPitTheme ? 'IN PIT' : isPaused ? 'PAUSED' : 'RACING';
   const topInfoTop = safeTop + 24;
   const topLineTop = safeTop + 58;
@@ -635,8 +621,5 @@ const st = StyleSheet.create({
   inPitControlButton: {
     width: CONTROL_BUTTON_SIZE,
     height: CONTROL_BUTTON_SIZE,
-  },
-  startMarkerRect: {
-    position: 'absolute',
   },
 });

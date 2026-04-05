@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     paddingBottom: 8,
-    backgroundColor: '#17171C',
+    backgroundColor: 'transparent',
   },
   homeIndicatorPill: {
     width: 134,

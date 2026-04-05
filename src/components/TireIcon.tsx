@@ -63,14 +63,16 @@ const TIRE_COLORS: Record<TireType, string> = {
 
 type Props = {
   type: TireType;
+  width?: number;
+  height?: number;
 };
 
-export default function TireIcon({ type }: Props) {
+export default function TireIcon({ type, width = 44, height = 41 }: Props) {
   const color = TIRE_COLORS[type];
   const letterPath = LETTER_PATHS[type];
 
   return (
-    <Svg width={44} height={41} viewBox="0 0 44 41" fill="none">
+    <Svg width={width} height={height} viewBox="0 0 44 41" fill="none">
       <Path d={ARCS} stroke={color} strokeWidth={6} strokeLinecap="round" />
       <Path d={letterPath} fill={color} />
     </Svg>

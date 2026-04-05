@@ -1,4 +1,6 @@
 import React, { useRef } from 'react';
+
+let _ctaBtnId = 0;
 import { Animated, Easing, Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import Svg, { Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
@@ -13,6 +15,10 @@ type GradientCtaButtonProps = {
   textButtonLabel?: string;
   textButtonChecked?: boolean;
   onPressTextButton?: () => void;
+  /** Custom gradient center color (default: '#E03A3E') */
+  gradientStart?: string;
+  /** Custom gradient edge color (default: '#FF4D51') */
+  gradientEnd?: string;
 };
 
 const GLOW_EXTRA_WIDTH = 160;
@@ -30,9 +36,11 @@ export default function GradientCtaButton({
   textButtonLabel = 'On a Treadmil?',
   textButtonChecked = false,
   onPressTextButton,
+  gradientStart = '#E03A3E',
+  gradientEnd = '#FF4D51',
 }: GradientCtaButtonProps) {
-  const gradientId = useRef(`gradientCta_${Math.random().toString(36).slice(2, 9)}`).current;
-  const glowId = useRef(`gradientCtaGlow_${Math.random().toString(36).slice(2, 9)}`).current;
+  const gradientId = useRef(`gradientCta_${++_ctaBtnId}`).current;
+  const glowId = useRef(`gradientCtaGlow_${_ctaBtnId}`).current;
   const pressAnim = useRef(new Animated.Value(0)).current;
   const showTextButton = textButtonType !== 'none';
   const showCheckbox = textButtonType === 'checkbox';
@@ -88,8 +96,8 @@ export default function GradientCtaButton({
         >
           <Defs>
             <RadialGradient id={glowId} cx="50%" cy="50%" r="50%">
-              <Stop offset="0%" stopColor="rgba(224,58,62,1)" />
-              <Stop offset="100%" stopColor="rgba(224,58,62,0)" />
+              <Stop offset="0%" stopColor={gradientStart} stopOpacity="1" />
+              <Stop offset="100%" stopColor={gradientStart} stopOpacity="0" />
             </RadialGradient>
           </Defs>
           <Rect x="0" y="0" width={width + GLOW_EXTRA_WIDTH} height={GLOW_HEIGHT} fill={`url(#${glowId})`} opacity="0.3" />
@@ -117,12 +125,12 @@ export default function GradientCtaButton({
             viewBox={`0 0 ${width} ${height}`}
             style={StyleSheet.absoluteFill}
           >
-            <Defs>
-              <RadialGradient id={gradientId} cx="50%" cy="50%" r="72%">
-                <Stop offset="27%" stopColor="#E03A3E" />
-                <Stop offset="100%" stopColor="#FF4D51" />
-              </RadialGradient>
-            </Defs>
+          <Defs>
+            <RadialGradient id={gradientId} cx="50%" cy="50%" r="72%">
+              <Stop offset="27%" stopColor={gradientStart} />
+              <Stop offset="100%" stopColor={gradientEnd} />
+            </RadialGradient>
+          </Defs>
             <Rect
               x="0"
               y="0"
