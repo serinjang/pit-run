@@ -26,6 +26,7 @@ import { useSafeBottom } from '../hooks/useSafeBottom';
 import { CIRCUITS } from '../config/circuits';
 import { useAppStore } from '../store/appStore';
 import TireIcon from '../components/TireIcon';
+import CircuitMini from '../components/CircuitMini';
 import type { HomeScreenProps } from '../navigation/types';
 
 // ─── Assets ──────────────────────────────────────────────────────────────────
@@ -351,32 +352,6 @@ function MonthGrid({ today, activitySet, colX, monthOffset, onPrev, onNext }: Mo
         );
       })}
     </View>
-  );
-}
-
-// ─── CircuitMini ──────────────────────────────────────────────────────────────
-
-function CircuitMini({ trackPath, viewBox, width: W, height: H }: {
-  trackPath: string;
-  viewBox: { width: number; height: number };
-  width: number;
-  height: number;
-}) {
-  const scale = Math.min(W / viewBox.width, H / viewBox.height);
-  const tx = (W - viewBox.width * scale) / 2;
-  const ty = (H - viewBox.height * scale) / 2;
-  return (
-    <Svg width={W} height={H}>
-      <Path
-        d={trackPath}
-        fill="none"
-        stroke="#FFFFFF"
-        strokeWidth={3.25 / scale}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        transform={`translate(${tx},${ty}) scale(${scale})`}
-      />
-    </Svg>
   );
 }
 
@@ -765,7 +740,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         </Pressable>
 
         {/* task */}
-        <Pressable style={{ position: 'absolute', left: taskLeft, top: 20 }} onPress={() => navigation.navigate('Qualifying')}>
+        <Pressable style={{ position: 'absolute', left: taskLeft, top: 20 }} onPress={() => navigation.navigate('History')}>
           <Svg width={32} height={32} viewBox="0 0 32 32" fill="none">
             <Path d={TASK_P1} stroke="#FFFFFF" strokeWidth={2.25} strokeLinecap="round" strokeLinejoin="round" />
             <Path d={TASK_P2} stroke="#FFFFFF" strokeWidth={2.25} strokeLinecap="round" strokeLinejoin="round" />

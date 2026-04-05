@@ -4,7 +4,8 @@ let _ctaBtnId = 0;
 import { Animated, Easing, Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import Svg, { Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
-type GradientCtaButtonProps = {
+type GradientCtaButtonSingleProps = {
+  variant?: 'single';
   width: number;
   label: string;
   enabled: boolean;
@@ -15,30 +16,60 @@ type GradientCtaButtonProps = {
   textButtonLabel?: string;
   textButtonChecked?: boolean;
   onPressTextButton?: () => void;
-  /** Custom gradient center color (default: '#E03A3E') */
   gradientStart?: string;
-  /** Custom gradient edge color (default: '#FF4D51') */
   gradientEnd?: string;
 };
+
+/** PITS + START 한 줄 (Figma 987:3121) */
+type GradientCtaButtonDualProps = {
+  variant: 'dual';
+  width: number;
+  dualLeftLabel?: string;
+  dualRightLabel?: string;
+  onPressLeft: () => void;
+  onPressRight: () => void;
+  height?: number;
+  gap?: number;
+  style?: StyleProp<ViewStyle>;
+};
+
+export type GradientCtaButtonProps = GradientCtaButtonSingleProps | GradientCtaButtonDualProps;
 
 const GLOW_EXTRA_WIDTH = 160;
 const GLOW_HEIGHT = 158;
 const GLOW_BOTTOM_OFFSET = -65;
 
-export default function GradientCtaButton({
-  width,
-  label,
-  enabled,
-  onPress,
-  height = 58,
-  style,
-  textButtonType = 'none',
-  textButtonLabel = 'On a Treadmil?',
-  textButtonChecked = false,
-  onPressTextButton,
-  gradientStart = '#E03A3E',
-  gradientEnd = '#FF4D51',
-}: GradientCtaButtonProps) {
+export default function GradientCtaButton(props: GradientCtaButtonProps) {
+  if (props.variant === 'dual') {
+    return (
+      <DualSplitCtaRow
+        width={props.width}
+        height={props.height}
+        gap={props.gap}
+        style={props.style}
+        leftLabel={props.dualLeftLabel}
+        rightLabel={props.dualRightLabel}
+        onPressLeft={props.onPressLeft}
+        onPressRight={props.onPressRight}
+      />
+    );
+  }
+
+  const {
+    width,
+    label,
+    enabled,
+    onPress,
+    height = 58,
+    style,
+    textButtonType = 'none',
+    textButtonLabel = 'On a Treadmil?',
+    textButtonChecked = false,
+    onPressTextButton,
+    gradientStart = '#E03A3E',
+    gradientEnd = '#FF4D51',
+  } = props;
+
   const gradientId = useRef(`gradientCta_${++_ctaBtnId}`).current;
   const glowId = useRef(`gradientCtaGlow_${_ctaBtnId}`).current;
   const pressAnim = useRef(new Animated.Value(0)).current;
@@ -200,7 +231,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Formula1-Bold',
     fontSize: 22,
     includeFontPadding: false,
-    letterSpacing: 0.5,
+    letterSpacing: -0.22,
     textShadowColor: '#FFFFFF',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 1,
@@ -212,5 +243,103 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: GLOW_BOTTOM_OFFSET,
     left: -80,
+  },
+});
+
+// ─── Dual row (PITS + START) — Figma 987:3121 ────────────────────────────────
+
+type DualSplitCtaRowProps = {
+  /** 스케일되는 전체 가로 (보통 화면폭 − 좌우 패딩) */
+  width: number;
+  leftLabel?: string;
+  rightLabel?: string;
+  onPressLeft: () => void;
+  onPressRight: () => void;
+  height?: number;
+  gap?: number;
+  style?: StyleProp<ViewStyle>;
+};
+
+function DualSplitCtaRow({
+  width,
+  leftLabel = 'PITS',
+  rightLabel = 'START',
+  onPressLeft,
+  onPressRight,
+  height = 58,
+  gap = 16,
+  style,
+}: DualSplitCtaRowProps) {
+  const leftPress = useRef(new Animated.Value(0)).current;
+  const rightPress = useRef(new Animated.Value(0)).current;
+
+  const leftScale = leftPress.interpolate({ inputRange: [0, 1], outputRange: [1, 0.985] });
+  const rightScale = rightPress.interpolate({ inputRange: [0, 1], outputRange: [1, 0.985] });
+
+  const pulse = (v: Animated.Value, pressed: boolean) => {
+    Animated.timing(v, {
+      toValue: pressed ? 1 : 0,
+      duration: pressed ? 95 : 150,
+      easing: pressed ? Easing.out(Easing.quad) : Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  };
+
+  return (
+    <View style={[{ flexDirection: 'row', width, gap }, style]}>
+      <Animated.View style={{ flex: 1, transform: [{ scale: leftScale }] }}>
+        <Pressable
+          onPress={onPressLeft}
+          onPressIn={() => pulse(leftPress, true)}
+          onPressOut={() => pulse(leftPress, false)}
+          style={[dualStyles.halfBtn, dualStyles.pitsBtn, { height, borderRadius: 12 }]}
+        >
+          <Text style={dualStyles.dualLabel} allowFontScaling={false}>
+            {leftLabel}
+          </Text>
+        </Pressable>
+      </Animated.View>
+      <Animated.View style={{ flex: 1, transform: [{ scale: rightScale }] }}>
+        <Pressable
+          onPress={onPressRight}
+          onPressIn={() => pulse(rightPress, true)}
+          onPressOut={() => pulse(rightPress, false)}
+          style={[dualStyles.halfBtn, dualStyles.startBtn, { height, borderRadius: 12 }]}
+        >
+          <Text style={dualStyles.dualLabel} allowFontScaling={false}>
+            {rightLabel}
+          </Text>
+        </Pressable>
+      </Animated.View>
+    </View>
+  );
+}
+
+const dualStyles = StyleSheet.create({
+  halfBtn: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 10,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  pitsBtn: {
+    backgroundColor: '#34343F',
+  },
+  startBtn: {
+    backgroundColor: '#E03A3E',
+  },
+  dualLabel: {
+    color: '#FFFFFF',
+    fontFamily: 'Formula1-Bold',
+    fontSize: 22,
+    lineHeight: 26,
+    letterSpacing: -0.22,
+    includeFontPadding: false,
   },
 });

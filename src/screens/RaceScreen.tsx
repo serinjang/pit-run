@@ -25,8 +25,8 @@ import type { RaceScreenProps } from '../navigation/types';
 // ─── Assets ──────────────────────────────────────────────────────────────────
 
 const STOPWATCH_ICON = require('../../assets/icons/qualifying-warmup-5ce716.png');
-const TROPHY_ICON    = require('../../assets/race-trophy.png');
-const FLAG_ICON      = require('../../assets/race-flag.png');
+const TROPHY_ICON = require('../../assets/race-trophy.png');
+const FLAG_ICON = require('../../assets/race-flag.png');
 
 // ─── Tab icon SVG paths (공유) ────────────────────────────────────────────────
 
@@ -248,7 +248,7 @@ export default function RaceScreen({ navigation }: RaceScreenProps) {
         {/* task */}
         <Pressable
           style={{ position: 'absolute', left: taskLeft, top: 20 }}
-          onPress={() => navigation.navigate('Qualifying')}
+          onPress={() => navigation.navigate('History')}
         >
           <Svg width={32} height={32} viewBox="0 0 32 32" fill="none">
             <Path d={TASK_P1} stroke="#FFFFFF" strokeWidth={2.25} strokeLinecap="round" strokeLinejoin="round" />

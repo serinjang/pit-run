@@ -58,8 +58,6 @@ export default function AllCircuitsScreen({ navigation, route }: AllCircuitsScre
                 key={circuit.id}
                 circuit={circuit}
                 tag={cfg.tag}
-                svgOffsetX={cfg.svgX}
-                svgOffsetY={cfg.svgY}
                 svgDisplayW={cfg.svgW}
                 svgDisplayH={cfg.svgH}
                 isSelected={isSelected}

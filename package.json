@@ -3,10 +3,13 @@
   "version": "1.0.0",
   "main": "index.ts",
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "start": "expo start --web --localhost --port 8081",
+    "android": "expo start --android --localhost --port 8081",
+    "ios": "expo start --ios --localhost --port 8081",
+    "web": "expo start --web --localhost --port 8081",
+    "web:clear": "expo start --web --clear --localhost --port 8081",
+    "web:history": "EXPO_PUBLIC_WEB_INITIAL=History expo start --web --localhost --port 8081",
+    "start:native": "expo start --localhost --port 8081"
   },
   "dependencies": {
     "@gorhom/bottom-sheet": "^5.2.8",

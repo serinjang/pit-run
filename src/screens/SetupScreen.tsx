@@ -19,6 +19,7 @@ import TireIcon from '../components/TireIcon';
 import BackButton from '../components/BackButton';
 import type { CircuitTagType } from '../components/CircuitCard';
 import { CIRCUITS } from '../config/circuits';
+import type { CircuitCardConfig } from '../config/circuitCardConfig';
 import { CIRCUIT_CARD_CONFIG } from '../config/circuitCardConfig';
 import { useAppStore } from '../store/appStore';
 import type { TireType } from '../constants/colors';
@@ -37,7 +38,7 @@ const TITLE_TO_TIRE_GAP = 52;
 // Gap between tire section and circuit section (from Figma: y:256 - y:204 = 52)
 const TIRE_TO_CIRCUIT_GAP = 52;
 
-const CTA_CONTAINER_H = 234; // taller than basic CTA — accounts for "On a Treadmill?" text row above button
+const CTA_CONTAINER_H = 164; // fade + START (treadmill row spec’d out for v1)
 
 const TIRES: Array<{
   type: TireType;
@@ -51,20 +52,34 @@ const TIRES: Array<{
   { type: 'wet', letter: 'W', color: '#4CB5C9', description: 'Easy and Gentle' },
 ];
 
+/** Featured 카드용 트랙 박스 크기 (346 기준); 위치는 CircuitCard에서 우하단 inset 고정 */
+function featuredTrackSize(cfg: CircuitCardConfig) {
+  const f = cfg.featured;
+  const r = 346 / 167;
+  return {
+    w: f?.svgW ?? cfg.svgW * r,
+    h: f?.svgH ?? cfg.svgH * r,
+  };
+}
 
 export default function SetupScreen({ navigation }: SetupScreenProps) {
   const { width: windowW } = useWindowDimensions();
   const safeTop = useSafeTop();
   const safeBottom = useSafeBottom();
-  const { setSelectedCircuitId: storeSetCircuit, setSelectedTire: storeSetTire, selectedCircuitId: storeCircuitId } = useAppStore();
+  const {
+    setSelectedCircuitId: storeSetCircuit,
+    setSelectedTire: storeSetTire,
+    selectedCircuitId: storeCircuitId,
+    qualifyingResult,
+    paceRecords,
+  } = useAppStore();
 
   const CARD_W = (windowW - H_PAD * 2 - CARD_GAP) / 2;
+  const BEST_MATCH_CARD_W = windowW - H_PAD * 2;
 
   const [selectedTire, setSelectedTire] = useState<TireType | null>(null);
   const [selectedCircuitId, setSelectedCircuitId] = useState<string | null>(null);
   const [tireExpanded, setTireExpanded] = useState(false);
-  const [isTreadmill, setIsTreadmill] = useState(false);
-
   const tireSectionH = useRef(new Animated.Value(TIRE_EXPANDED_H)).current;
   // Translates the entire tire list so the selected tire slides to position 0
   const tiresTranslateY = useRef(new Animated.Value(0)).current;
@@ -79,10 +94,30 @@ export default function SetupScreen({ navigation }: SetupScreenProps) {
   // Track the last circuit selected from "see all" — always placed in slot 0.
   const [lastSeeAllCircuitId, setLastSeeAllCircuitId] = useState<string | null>(null);
 
-  // Random 4 circuits (stable per mount)
+  const paceSecPerKm = useMemo(() => {
+    const q = qualifyingResult?.paceSecPerKm;
+    if (typeof q === 'number' && q > 0) return q;
+    const best = paceRecords.bestEver;
+    if (Number.isFinite(best) && best > 0 && best < Number.POSITIVE_INFINITY) return best;
+    return null;
+  }, [qualifyingResult, paceRecords.bestEver]);
+
+  const estimatedMinutesForCircuit = useCallback(
+    (distanceKm: number) => {
+      if (paceSecPerKm == null) return null;
+      const totalS = Math.round(paceSecPerKm * distanceKm);
+      return Math.max(1, Math.round(totalS / 60));
+    },
+    [paceSecPerKm],
+  );
+
+  // Best Match: two picks (design default Monaco + Albert Park when available)
   const baseCircuits = useMemo(() => {
+    const monaco = CIRCUITS.find((c) => c.id === 'monaco');
+    const albert = CIRCUITS.find((c) => c.id === 'albert-park');
+    if (monaco && albert) return [monaco, albert];
     const shuffled = [...CIRCUITS].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, 4);
+    return shuffled.slice(0, 2);
   }, []);
 
   // Sync circuit selection when returning from AllCircuits.
@@ -100,9 +135,9 @@ export default function SetupScreen({ navigation }: SetupScreenProps) {
     }, [storeCircuitId]),
   );
 
-  // Grid: see-all circuit takes slot 0.
-  // If it's also a Best Match circuit, rearrange the 4 cards (no duplication).
-  // If it's not in Best Match, replace slot 0 only (slots 1-3 = baseCircuits[1-3]).
+  // Best Match column: see-all circuit takes slot 0.
+  // If it's also a Best Match circuit, rearrange the 2 cards (no duplication).
+  // If it's not in Best Match, replace slot 0 only (slot 1 = baseCircuits[1]).
   const isSeeAllInBase = lastSeeAllCircuitId !== null && baseCircuits.some((c) => c.id === lastSeeAllCircuitId);
 
   const displayedCircuits = useMemo(() => {
@@ -114,9 +149,17 @@ export default function SetupScreen({ navigation }: SetupScreenProps) {
       // Rearrange Best Match: selected circuit first, remaining in original order
       return [seeAllCircuit, ...baseCircuits.filter((c) => c.id !== lastSeeAllCircuitId)];
     }
-    // True see-all circuit: replace slot 0 only
-    return [seeAllCircuit, ...baseCircuits.slice(1)];
+    const second = baseCircuits[1] ?? baseCircuits[0];
+    return [seeAllCircuit, second];
   }, [lastSeeAllCircuitId, baseCircuits]);
+
+  // Dissolve 슬롯은 `circuitGridOpacity`를 공유하는데, 레이아웃이 바뀌며 언마운트될 때 값이 0이면
+  // 다음에 see all로 베이스 밖 서킷을 고르면 전경 카드가 계속 투명하게 남는다.
+  useEffect(() => {
+    if (lastSeeAllCircuitId && !isSeeAllInBase) {
+      circuitGridOpacity.setValue(1);
+    }
+  }, [lastSeeAllCircuitId, isSeeAllInBase, circuitGridOpacity]);
 
   const circuitSectionLabel = (lastSeeAllCircuitId !== null && !isSeeAllInBase) ? 'Circuits' : 'Best Match';
 
@@ -133,6 +176,7 @@ export default function SetupScreen({ navigation }: SetupScreenProps) {
           // Just reset to original Best Match order — no dissolve needed
           setSelectedCircuitId(null);
           setLastSeeAllCircuitId(null);
+          circuitGridOpacity.setValue(1);
           (storeSetCircuit as (id: string | null) => void)(null);
         } else {
           Animated.timing(circuitGridOpacity, {
@@ -143,16 +187,8 @@ export default function SetupScreen({ navigation }: SetupScreenProps) {
             if (finished) {
               setSelectedCircuitId(null);
               setLastSeeAllCircuitId(null);
-              // Clear store so useFocusEffect can detect re-selection of the same circuit
               (storeSetCircuit as (id: string | null) => void)(null);
-              // Wait one frame for React to re-render with new state before fading back in
-              requestAnimationFrame(() => {
-                Animated.timing(circuitGridOpacity, {
-                  toValue: 1,
-                  duration: 100,
-                  useNativeDriver: true,
-                }).start();
-              });
+              circuitGridOpacity.setValue(1);
             }
           });
         }
@@ -373,77 +409,73 @@ export default function SetupScreen({ navigation }: SetupScreenProps) {
               </Pressable>
             </View>
 
-            {/* Grid: slot 0 uses two-layer cross-dissolve when see-all active;
-                slots 1-3 are single-layer (just opacity changes). */}
-            <View style={styles.circuitGrid}>
+            {/* Best Match: two full-width cards; slot 0 may use cross-dissolve */}
+            <View style={styles.bestMatchCardColumn}>
               {displayedCircuits.map((circuit, index) => {
                 const cfg = CIRCUIT_CARD_CONFIG[circuit.id] ?? {
                   tag: 'Mixed' as CircuitTagType,
                   svgX: 65, svgY: 115, svgW: 80, svgH: 50,
                 };
+                const feat = featuredTrackSize(cfg);
+                const eta = estimatedMinutesForCircuit(circuit.distanceKm);
                 const isSelected = circuit.id === selectedCircuitId;
                 const isDimmed = selectedCircuitId !== null && !isSelected;
 
-                // Slot 0 with a true see-all circuit (not in Best Match) → cross-dissolve:
-                // background = baseCircuits[0] (original Best Match slot 0)
-                // foreground = see-all circuit, fades to 0 on deselect
-                // Best Match rearrangement uses single-layer (no cross-dissolve needed).
                 if (index === 0 && lastSeeAllCircuitId !== null && !isSeeAllInBase) {
                   const bgCircuit = baseCircuits[0];
                   const bgCfg = CIRCUIT_CARD_CONFIG[bgCircuit.id] ?? {
                     tag: 'Mixed' as CircuitTagType,
                     svgX: 65, svgY: 115, svgW: 80, svgH: 50,
                   };
+                  const bgFeat = featuredTrackSize(bgCfg);
+                  const bgEta = estimatedMinutesForCircuit(bgCircuit.distanceKm);
                   return (
-                    <View key={`slot0-${circuit.id}`} style={{ width: CARD_W }}>
-                      {/* Background: original best-match slot-0 card, always visible */}
+                    <View key={`slot0-${circuit.id}`} style={{ width: BEST_MATCH_CARD_W }}>
                       <View style={StyleSheet.absoluteFill} pointerEvents="none">
                         <CircuitCard
+                          layout="featured"
                           circuit={bgCircuit}
                           tag={bgCfg.tag}
-                          svgOffsetX={bgCfg.svgX}
-                          svgOffsetY={bgCfg.svgY}
-                          svgDisplayW={bgCfg.svgW}
-                          svgDisplayH={bgCfg.svgH}
+                          svgDisplayW={bgFeat.w}
+                          svgDisplayH={bgFeat.h}
+                          estimatedMinutes={bgEta}
                           isSelected={false}
                           isDimmed={false}
                           onPress={() => {}}
-                          cardWidth={CARD_W}
+                          cardWidth={BEST_MATCH_CARD_W}
                         />
                       </View>
-                      {/* Foreground: see-all circuit — fades to 0 on deselect */}
-                      <Animated.View style={{ opacity: circuitGridOpacity }}>
+                      <Animated.View style={{ opacity: circuitGridOpacity }} collapsable={false}>
                         <CircuitCard
+                          layout="featured"
                           circuit={circuit}
                           tag={cfg.tag}
-                          svgOffsetX={cfg.svgX}
-                          svgOffsetY={cfg.svgY}
-                          svgDisplayW={cfg.svgW}
-                          svgDisplayH={cfg.svgH}
+                          svgDisplayW={feat.w}
+                          svgDisplayH={feat.h}
+                          estimatedMinutes={eta}
                           isSelected={isSelected}
                           isDimmed={isDimmed}
                           onPress={() => handleCircuitPress(circuit.id)}
-                          cardWidth={CARD_W}
+                          cardWidth={BEST_MATCH_CARD_W}
                         />
                       </Animated.View>
                     </View>
                   );
                 }
 
-                // Slots 1-3 (or slot 0 in Best Match mode): single-layer, opacity only
                 return (
                   <CircuitCard
                     key={circuit.id}
+                    layout="featured"
                     circuit={circuit}
                     tag={cfg.tag}
-                    svgOffsetX={cfg.svgX}
-                    svgOffsetY={cfg.svgY}
-                    svgDisplayW={cfg.svgW}
-                    svgDisplayH={cfg.svgH}
+                    svgDisplayW={feat.w}
+                    svgDisplayH={feat.h}
+                    estimatedMinutes={eta}
                     isSelected={isSelected}
                     isDimmed={isDimmed}
                     onPress={() => handleCircuitPress(circuit.id)}
-                    cardWidth={CARD_W}
+                    cardWidth={BEST_MATCH_CARD_W}
                   />
                 );
               })}
@@ -473,7 +505,7 @@ export default function SetupScreen({ navigation }: SetupScreenProps) {
           <View style={[styles.ctaBtnWrap, { bottom: 40 }]}>
             <GradientCtaButton
               width={windowW - H_PAD * 2}
-              label="Start"
+              label="START"
               enabled={canStart}
               onPress={() => {
                 if (canStart) {
@@ -482,10 +514,7 @@ export default function SetupScreen({ navigation }: SetupScreenProps) {
                   navigation.navigate('Countdown');
                 }
               }}
-              textButtonType="checkbox"
-              textButtonLabel="On a Treadmil?"
-              textButtonChecked={isTreadmill}
-              onPressTextButton={() => setIsTreadmill((v) => !v)}
+              textButtonType="none"
             />
           </View>
         </View>
@@ -537,7 +566,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     lineHeight: 24,
     color: 'rgba(255,255,255,0.7)',
-    letterSpacing: 1,
+    letterSpacing: -0.4,
     includeFontPadding: false,
     flex: 1,
   },
@@ -554,13 +583,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+    marginLeft: 4,
   },
   bestMatchLabel: {
     fontFamily: 'Formula1-Regular',
-    fontSize: 20,
-    lineHeight: 24,
+    fontSize: 17,
+    lineHeight: 20.4,
     color: 'rgba(255,255,255,0.5)',
-    letterSpacing: 1,
+    letterSpacing: -0.34,
     includeFontPadding: false,
   },
   seeAllBtn: {
@@ -571,14 +601,13 @@ const styles = StyleSheet.create({
   seeAllText: {
     fontFamily: 'Formula1-Regular',
     fontSize: 17,
-    lineHeight: 22,
+    lineHeight: 22.1,
     color: 'rgba(255,255,255,0.5)',
     letterSpacing: -0.34,
     includeFontPadding: false,
   },
-  circuitGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  bestMatchCardColumn: {
+    width: '100%',
     gap: CARD_GAP,
   },
   ctaContainer: {

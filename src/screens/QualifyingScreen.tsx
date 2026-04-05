@@ -30,7 +30,7 @@ const FW = 402;
 
 const WARMUP_ICON = require('../../assets/icons/qualifying-warmup-5ce716.png');
 const RUN_ICON = require('../../assets/icons/qualifying-run-756777.png');
-const PLAN_ICON = require('../../assets/icons/qualifying-plan-76f8f5.png');
+const LICENSE_TROPHY_ICON = require('../../assets/race-trophy.png');
 
 const RECOMMENDED_WARMUP_MINUTES = 5;
 const ACCENT = '#E03A3E';
@@ -39,6 +39,8 @@ type Phase = 'intro' | 'warmup' | 'qualifying' | 'retireConfirm';
 
 export default function QualifyingScreen({ navigation }: QualifyingScreenProps) {
   const { setQualifyingResult } = useAppStore();
+  /** GPS 1km — 프로덕션에서 위치 추적 연동 시 갱신 */
+  const trialDistKm = 0;
   const { width: windowW } = useWindowDimensions();
   const safeTop = useSafeTop();
   const sx = windowW / FW; // used only for fill items (timerFontSize)
@@ -121,7 +123,7 @@ export default function QualifyingScreen({ navigation }: QualifyingScreenProps) 
     const oneKmMs = Math.max(1000, trialElapsedMs);
     const result = buildQualifyingResult(oneKmMs);
     setQualifyingResult(result);
-    navigation.navigate('Home');
+    navigation.replace('QualifyingPost');
   };
 
   const confirmRetire = () => {
@@ -342,15 +344,15 @@ function IntroScreen({ windowW, insetsTop, onStart }: IntroScreenProps) {
 
       {/* Subtitle — gap 12 below title */}
       <Text style={st.introSubtitle} allowFontScaling={false}>
-        {'Find your level.\nGet a plan made only for you.'}
+        {'Earn your license.\nGet a plan made only for you.'}
       </Text>
 
       {/* Step cards — gap 36 below subtitle */}
       <View style={[st.cardsWrap, { marginTop: 36, gap: 12 }]}>
         <StepCard
           icon={WARMUP_ICON}
-          iconW={22}
-          iconH={26}
+          iconW={20}
+          iconH={24}
           label="Warm-up"
           meta="5min"
           borderRadius={cardBorderRadius}
@@ -360,8 +362,8 @@ function IntroScreen({ windowW, insetsTop, onStart }: IntroScreenProps) {
         />
         <StepCard
           icon={RUN_ICON}
-          iconW={22}
-          iconH={25}
+          iconW={20}
+          iconH={23}
           label="Run 1km"
           meta="Auto-start"
           borderRadius={cardBorderRadius}
@@ -370,10 +372,10 @@ function IntroScreen({ windowW, insetsTop, onStart }: IntroScreenProps) {
           paddingHEnd={cardPaddingHEnd}
         />
         <StepCard
-          icon={PLAN_ICON}
-          iconW={22}
-          iconH={23}
-          label="Get Plan"
+          icon={LICENSE_TROPHY_ICON}
+          iconW={23}
+          iconH={24}
+          label="Get License"
           meta="Level & Plan"
           borderRadius={cardBorderRadius}
           paddingV={cardPaddingV}
@@ -409,7 +411,7 @@ function IntroScreen({ windowW, insetsTop, onStart }: IntroScreenProps) {
           <GradientCtaButton
             width={ctaWidth}
             height={ctaHeight}
-            label="Start"
+            label="START"
             enabled
             onPress={onStart}
           />
